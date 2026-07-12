@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Loader2, Mail, Shield, UserCircle } from 'lucide-react'
+import { Loader as Loader2, Mail, Shield, CircleUser as UserCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
 import { useToast } from '@/hooks/use-toast'

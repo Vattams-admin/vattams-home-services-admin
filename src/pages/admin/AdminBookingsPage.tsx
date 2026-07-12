@@ -1,7 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import {
-  Loader2, Eye, XCircle, UserPlus, Wrench,
-} from 'lucide-react'
+import { Loader as Loader2, Eye, Circle as XCircle, UserPlus, Wrench } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Profile, Booking, BookingPhoto, BookingStatus } from '@/lib/supabase'
 import { useToast } from '@/hooks/use-toast'

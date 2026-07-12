@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Loader2, Bell, CheckCheck } from 'lucide-react'
+import { Loader as Loader2, Bell, CheckCheck } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Notification } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'

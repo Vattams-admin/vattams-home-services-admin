@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Loader2, ArrowRight, Phone } from 'lucide-react'
+import { Loader as Loader2, ArrowRight, Phone } from 'lucide-react'
 import { supabase, type ServiceCategory } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'

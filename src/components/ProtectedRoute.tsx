@@ -1,5 +1,5 @@
 import { Navigate, useLocation } from 'react-router-dom'
-import { Clock, XCircle, Ban } from 'lucide-react'
+import { Clock, Circle as XCircle, Ban } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import type { UserRole } from '@/lib/supabase'
 

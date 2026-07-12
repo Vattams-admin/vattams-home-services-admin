@@ -1,7 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import {
-  Loader2, BarChart3, CheckCircle, XCircle, CreditCard, TrendingUp, Wrench,
-} from 'lucide-react'
+import { Loader as Loader2, BarChart3, CircleCheck as CheckCircle, Circle as XCircle, CreditCard, TrendingUp, Wrench } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Booking, Profile, Invoice } from '@/lib/supabase'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
