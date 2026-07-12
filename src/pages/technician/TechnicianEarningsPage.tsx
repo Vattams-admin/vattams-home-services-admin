@@ -1,108 +1,291 @@
-import { useEffect, useState } from 'react'
-import { Download, TrendingUp, Calendar, Clock, Loader as Loader2 } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
-import type { Invoice, Settings } from '@/lib/supabase'
-import { useAuth } from '@/lib/auth'
-import { useToast } from '@/hooks/use-toast'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { useEffect, useState, useMemo } from 'react'
+import {
+  TrendingUp,
+  Loader2,
+  CheckCircle2,
+  Calendar,
+  Wrench,
+  IndianRupee,
+  BarChart3,
+  Wallet,
+} from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { LoadingScreen } from '@/components/LoadingScreen'
-import { cn, formatDate, formatCurrency } from '@/lib/utils'
-import { generateInvoicePDF } from '@/lib/pdf'
+import { Select } from '@/components/ui/input'
+import { useAuth } from '@/lib/auth'
+import { supabase, type Booking, type TechnicianWallet } from '@/lib/supabase'
+import { cn, formatDate, formatCurrency, BOOKING_STATUS_COLORS } from '@/lib/utils'
 
-const statusColors: Record<string, string> = {
-  paid: 'bg-green-100 text-green-700', pending: 'bg-amber-100 text-amber-700', failed: 'bg-red-100 text-red-700',
+type MonthlyEarning = {
+  month: string
+  monthLabel: string
+  count: number
+  total: number
 }
 
-export function TechnicianEarningsPage() {
-  const { profile } = useAuth()
-  const { toast } = useToast()
+export default function TechnicianEarningsPage() {
+  const { profile, session } = useAuth()
+
+  const [completedJobs, setCompletedJobs] = useState<Booking[]>([])
+  const [wallet, setWallet] = useState<TechnicianWallet | null>(null)
   const [loading, setLoading] = useState(true)
-  const [invoices, setInvoices] = useState<Invoice[]>([])
-  const [settings, setSettings] = useState<Settings | null>(null)
-  const [downloadingId, setDownloadingId] = useState<string | null>(null)
-  const [stats, setStats] = useState({ total: 0, thisMonth: 0, pending: 0 })
+  const [monthFilter, setMonthFilter] = useState('all')
+
+  const userId = profile?.id || session?.user?.id
 
   useEffect(() => {
-    if (!profile) return
-    let mounted = true;
-    (async () => {
-      const { data: invs } = await supabase.from('invoices').select('*').eq('technician_id', profile.id).order('created_at', { ascending: false })
-      const { data: settingsData } = await supabase.from('settings').select('*').maybeSingle()
-      if (!mounted) return
-      const invoiceList = (invs || []) as Invoice[]
-      setInvoices(invoiceList)
-      setSettings(settingsData as Settings | null)
-      const paid = invoiceList.filter((i) => i.status === 'paid')
-      const total = paid.reduce((s, i) => s + i.amount, 0)
-      const now = new Date()
-      const thisMonth = paid.filter((i) => { const d = new Date(i.created_at); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear() }).reduce((s, i) => s + i.amount, 0)
-      const pending = invoiceList.filter((i) => i.status === 'pending').reduce((s, i) => s + i.amount, 0)
-      setStats({ total, thisMonth, pending })
-      setLoading(false)
-    })()
-    return () => { mounted = false }
-  }, [profile])
+    if (!userId) return
+    let cancelled = false
+    async function load() {
+      try {
+        const [jobsRes, walletRes] = await Promise.all([
+          supabase
+            .from('bookings')
+            .select('*')
+            .eq('technician_id', userId)
+            .eq('status', 'completed')
+            .order('updated_at', { ascending: false }),
+          supabase
+            .from('technician_wallets')
+            .select('*')
+            .eq('technician_id', userId)
+            .maybeSingle(),
+        ])
 
-  const handleDownload = async (inv: Invoice) => {
-    setDownloadingId(inv.id)
-    try { await generateInvoicePDF(inv, null, null, profile, settings); toast('Invoice downloaded', 'success') }
-    catch { toast('Failed to download invoice', 'error') }
-    setDownloadingId(null)
+        if (cancelled) return
+        setCompletedJobs((jobsRes.data as Booking[]) || [])
+        setWallet((walletRes.data as TechnicianWallet) || null)
+      } catch {
+        // ignore
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [userId])
+
+  // Group earnings by month
+  const monthlyEarnings = useMemo<MonthlyEarning[]>(() => {
+    const map: Record<string, MonthlyEarning> = {}
+    completedJobs.forEach((job) => {
+      const date = new Date(job.updated_at || job.created_at)
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+      const monthLabel = date.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+      if (!map[monthKey]) {
+        map[monthKey] = { month: monthKey, monthLabel, count: 0, total: 0 }
+      }
+      map[monthKey].count += 1
+      map[monthKey].total += Number(job.amount)
+    })
+    return Object.values(map).sort((a, b) => b.month.localeCompare(a.month))
+  }, [completedJobs])
+
+  // Available months for filter
+  const availableMonths = monthlyEarnings.map((m) => ({
+    value: m.month,
+    label: m.monthLabel,
+  }))
+
+  // Filtered jobs
+  const filteredJobs = useMemo(() => {
+    if (monthFilter === 'all') return completedJobs
+    return completedJobs.filter((job) => {
+      const date = new Date(job.updated_at || job.created_at)
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+      return monthKey === monthFilter
+    })
+  }, [completedJobs, monthFilter])
+
+  const totalEarnings = wallet?.total_earnings ?? 0
+  const pendingEarnings = wallet?.pending_earnings ?? 0
+  const availableBalance = wallet?.balance ?? 0
+  const completedCount = wallet?.completed_jobs ?? completedJobs.length
+
+  // Current month earnings
+  const currentMonthKey = (() => {
+    const now = new Date()
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  })()
+  const currentMonthData = monthlyEarnings.find((m) => m.month === currentMonthKey)
+  const currentMonthEarnings = currentMonthData?.total ?? 0
+  const currentMonthJobs = currentMonthData?.count ?? 0
+
+  if (loading) {
+    return (
+      <div className="flex h-[60vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+      </div>
+    )
   }
-
-  if (loading) return <LoadingScreen message="Loading earnings..." />
-  if (!profile) return null
-
-  const statCards = [
-    { label: 'Total Earnings', value: formatCurrency(stats.total), icon: TrendingUp, color: 'text-green-600 bg-green-100' },
-    { label: 'This Month', value: formatCurrency(stats.thisMonth), icon: Calendar, color: 'text-blue-600 bg-blue-100' },
-    { label: 'Pending Payments', value: formatCurrency(stats.pending), icon: Clock, color: 'text-amber-600 bg-amber-100' },
-  ]
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Earnings</h1>
-
-      <div className="grid gap-4 sm:grid-cols-3">
-        {statCards.map((s) => (
-          <Card key={s.label}>
-            <CardContent className="flex items-center gap-4 py-4">
-              <div className={cn('flex h-12 w-12 items-center justify-center rounded-lg', s.color)}><s.icon className="h-6 w-6" /></div>
-              <div><p className="text-2xl font-bold text-gray-900">{s.value}</p><p className="text-sm text-gray-500">{s.label}</p></div>
-            </CardContent>
-          </Card>
-        ))}
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">Earnings</h1>
+        <p className="mt-1 text-sm text-slate-500">Track your earnings and completed jobs.</p>
       </div>
 
-      {invoices.length === 0 ? (
-        <Card><CardContent className="py-12 text-center"><p className="text-gray-500">No invoices found.</p><p className="mt-1 text-sm text-gray-400">Your earnings will appear here once you complete jobs.</p></CardContent></Card>
-      ) : (
-        <div className="space-y-3">
-          {invoices.map((inv) => (
-            <Card key={inv.id}>
-              <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-xs text-gray-400">#{inv.invoice_number}</span>
-                    <p className="font-medium text-gray-900">{inv.service_name}</p>
-                    <Badge color={statusColors[inv.status] || 'bg-gray-100 text-gray-700'}>{inv.status}</Badge>
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardContent className="flex items-center gap-3 p-5">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-green-50">
+              <TrendingUp className="h-6 w-6 text-green-600" />
+            </div>
+            <div>
+              <p className="text-sm text-slate-500">Total Earnings</p>
+              <p className="text-xl font-bold text-slate-900">{formatCurrency(totalEarnings)}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center gap-3 p-5">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-50">
+              <Wallet className="h-6 w-6 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-sm text-slate-500">Available Balance</p>
+              <p className="text-xl font-bold text-slate-900">{formatCurrency(availableBalance)}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center gap-3 p-5">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-amber-50">
+              <IndianRupee className="h-6 w-6 text-amber-600" />
+            </div>
+            <div>
+              <p className="text-sm text-slate-500">This Month</p>
+              <p className="text-xl font-bold text-slate-900">{formatCurrency(currentMonthEarnings)}</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center gap-3 p-5">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-purple-50">
+              <CheckCircle2 className="h-6 w-6 text-purple-600" />
+            </div>
+            <div>
+              <p className="text-sm text-slate-500">Completed Jobs</p>
+              <p className="text-xl font-bold text-slate-900">{completedCount}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Monthly Breakdown */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BarChart3 className="h-5 w-5 text-blue-600" />
+            Monthly Breakdown
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {monthlyEarnings.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <BarChart3 className="h-10 w-10 text-slate-300" />
+              <p className="mt-2 text-sm text-slate-500">No earnings data yet</p>
+              <p className="text-xs text-slate-400">Complete jobs to see your monthly earnings here.</p>
+            </div>
+          ) : (
+            monthlyEarnings.map((m) => {
+              const maxTotal = Math.max(...monthlyEarnings.map((x) => x.total), 1)
+              const barWidth = (m.total / maxTotal) * 100
+              return (
+                <div key={m.month} className="space-y-1">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium text-slate-700">{m.monthLabel}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-slate-500">{m.count} job{m.count !== 1 ? 's' : ''}</span>
+                      <span className="font-semibold text-slate-900">{formatCurrency(m.total)}</span>
+                    </div>
                   </div>
-                  <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500">
-                    <span className="font-semibold text-gray-700">{formatCurrency(inv.amount)}</span>
-                    <span>Created: {formatDate(inv.created_at)}</span>
-                    {inv.paid_at && <span>Paid: {formatDate(inv.paid_at)}</span>}
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className={cn(
+                        'h-full rounded-full',
+                        m.month === currentMonthKey ? 'bg-blue-600' : 'bg-blue-400',
+                      )}
+                      style={{ width: `${barWidth}%` }}
+                    />
                   </div>
                 </div>
-                <Button size="sm" variant="outline" onClick={() => handleDownload(inv)} disabled={downloadingId === inv.id}>
-                  {downloadingId === inv.id ? <><Loader2 className="mr-1 h-4 w-4 animate-spin" />Generating...</> : <><Download className="mr-1 h-4 w-4" />Download PDF</>}
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+              )
+            })
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Completed Jobs List */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <CardTitle>Completed Jobs</CardTitle>
+          {availableMonths.length > 0 && (
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-slate-400" />
+              <Select
+                value={monthFilter}
+                onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setMonthFilter(e.target.value)}
+                className="w-44"
+              >
+                <option value="all">All Months</option>
+                {availableMonths.map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          )}
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {filteredJobs.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <Wrench className="h-10 w-10 text-slate-300" />
+              <p className="mt-2 text-sm text-slate-500">
+                {completedJobs.length === 0 ? 'No completed jobs yet' : 'No jobs in this period'}
+              </p>
+              <p className="text-xs text-slate-400">
+                {completedJobs.length === 0
+                  ? 'Your completed jobs and earnings will appear here.'
+                  : 'Try a different month filter.'}
+              </p>
+            </div>
+          ) : (
+            filteredJobs.map((job) => (
+              <div
+                key={job.id}
+                className="flex items-center justify-between rounded-lg border border-slate-200 p-3"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-50">
+                    <Wrench className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-slate-900">{job.service_name}</p>
+                    <p className="text-xs text-slate-500">
+                      #{job.booking_number} · {formatDate(job.updated_at || job.created_at)}
+                    </p>
+                    <p className="text-xs text-slate-400">{job.city}, {job.district}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Badge className={cn(BOOKING_STATUS_COLORS['completed'])}>
+                    <CheckCircle2 className="mr-1 h-3 w-3" /> Completed
+                  </Badge>
+                  <p className="text-lg font-bold text-slate-900">
+                    {formatCurrency(Number(job.amount))}
+                  </p>
+                </div>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
