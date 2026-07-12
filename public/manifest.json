@@ -1,0 +1,10 @@
+{
+  "name": "VATTAMS Home Services",
+  "short_name": "VATTAMS",
+  "description": "Professional home services in Tamil Nadu",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "icons": [{ "src": "/vattams.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

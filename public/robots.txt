@@ -1,2 +1,10 @@
 User-agent: *
+Disallow: /admin
+Disallow: /customer
+Disallow: /technician
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /dashboard
 Allow: /
+Sitemap: https://vattams.com/sitemap.xml
