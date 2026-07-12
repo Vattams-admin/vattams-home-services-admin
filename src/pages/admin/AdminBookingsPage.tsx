@@ -6,13 +6,13 @@ import { useToast } from '@/hooks/use-toast'
 import { createNotification, createAuditLog } from '@/lib/notifications'
 import { cn, formatDate, formatCurrency, BOOKING_STATUS_COLORS } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { Textarea, Select } from '@/components/ui/input'
+import { Input, Textarea, Select } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Modal } from '@/components/ui/modal'
 import { LoadingScreen } from '@/components/LoadingScreen'
-import { Eye, UserPlus, Circle as XCircle } from 'lucide-react'
+import { Calendar, UserCog, Ban, Eye } from 'lucide-react'
 
 type Tab = 'all' | 'created' | 'assigned' | 'active' | 'completed' | 'cancelled'
 
@@ -25,138 +25,146 @@ export function AdminBookingsPage() {
   const [techs, setTechs] = useState<Record<string, Profile>>({})
   const [activeTechs, setActiveTechs] = useState<Profile[]>([])
   const [tab, setTab] = useState<Tab>('all')
-  const [viewBooking, setViewBooking] = useState<Booking | null>(null)
   const [assignBooking, setAssignBooking] = useState<Booking | null>(null)
   const [selectedTech, setSelectedTech] = useState('')
   const [cancelBooking, setCancelBooking] = useState<Booking | null>(null)
   const [cancelReason, setCancelReason] = useState('')
+  const [viewBooking, setViewBooking] = useState<Booking | null>(null)
+  const [actionLoading, setActionLoading] = useState(false)
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       const { data: bks } = await supabase.from('bookings').select('*').order('created_at', { ascending: false })
+      const { data: custs } = await supabase.from('profiles').select('*').eq('role', 'customer')
+      const { data: tList } = await supabase.from('profiles').select('*').eq('role', 'technician')
       if (!mounted) return
       setBookings((bks || []) as Booking[])
-      const cIds = [...new Set((bks || []).map((b) => b.customer_id))]
-      const tIds = [...new Set((bks || []).map((b) => b.technician_id).filter(Boolean))] as string[]
-      const [{ data: cs }, { data: ts }] = await Promise.all([
-        cIds.length ? supabase.from('profiles').select('*').in('id', cIds) : Promise.resolve({ data: [] }),
-        tIds.length ? supabase.from('profiles').select('*').in('id', tIds) : Promise.resolve({ data: [] }),
-      ])
-      if (!mounted) return
-      setCustomers(Object.fromEntries(((cs || []) as Profile[]).map((c) => [c.id, c])))
-      setTechs(Object.fromEntries(((ts || []) as Profile[]).map((t) => [t.id, t])))
-      const { data: at } = await supabase.from('profiles').select('*').eq('role', 'technician').eq('status', 'active').eq('is_available', true)
-      if (mounted) { setActiveTechs((at || []) as Profile[]); setLoading(false) }
+      const cMap: Record<string, Profile> = {}; (custs || []).forEach((c) => { cMap[(c as Profile).id] = c as Profile }); setCustomers(cMap)
+      const tMap: Record<string, Profile> = {}; (tList || []).forEach((t) => { tMap[(t as Profile).id] = t as Profile }); setTechs(tMap)
+      setActiveTechs((tList || []).filter((t) => (t as Profile).status === 'active' && (t as Profile).verification_status === 'approved') as Profile[])
+      setLoading(false)
     })()
     return () => { mounted = false }
   }, [])
+
+  const filtered = tab === 'all' ? bookings : tab === 'active' ? bookings.filter((b) => !['completed', 'cancelled', 'created'].includes(b.status)) : bookings.filter((b) => b.status === tab)
+
+  const assignTech = async () => {
+    if (!assignBooking || !selectedTech) return
+    setActionLoading(true)
+    const { error } = await supabase.from('bookings').update({ technician_id: selectedTech, status: 'assigned' as BookingStatus }).eq('id', assignBooking.id)
+    if (error) { toast('Failed to assign technician', 'error'); setActionLoading(false); return }
+    await createNotification(selectedTech, 'New Job Assigned', `Booking #${assignBooking.booking_number} has been assigned to you.`, 'info')
+    await createNotification(assignBooking.customer_id, 'Technician Assigned', `A technician has been assigned to your booking #${assignBooking.booking_number}.`, 'info')
+    if (profile) await createAuditLog(profile.id, 'assign_technician', 'booking', assignBooking.id, `Assigned tech to booking ${assignBooking.booking_number}`)
+    toast('Technician assigned successfully', 'success')
+    setBookings((bs) => bs.map((b) => b.id === assignBooking.id ? { ...b, technician_id: selectedTech, status: 'assigned' } : b))
+    setAssignBooking(null); setSelectedTech(''); setActionLoading(false)
+  }
+
+  const cancelBk = async () => {
+    if (!cancelBooking || !cancelReason.trim()) return
+    setActionLoading(true)
+    const { error } = await supabase.from('bookings').update({ status: 'cancelled' as BookingStatus, cancelled_by: profile?.id || 'admin', cancel_reason: cancelReason.trim() }).eq('id', cancelBooking.id)
+    if (error) { toast('Failed to cancel booking', 'error'); setActionLoading(false); return }
+    await createNotification(cancelBooking.customer_id, 'Booking Cancelled', `Your booking #${cancelBooking.booking_number} has been cancelled. Reason: ${cancelReason.trim()}`, 'error')
+    if (cancelBooking.technician_id) await createNotification(cancelBooking.technician_id, 'Booking Cancelled', `Booking #${cancelBooking.booking_number} has been cancelled.`, 'error')
+    if (profile) await createAuditLog(profile.id, 'cancel_booking', 'booking', cancelBooking.id, `Cancelled booking ${cancelBooking.booking_number}: ${cancelReason.trim()}`)
+    toast('Booking cancelled', 'info')
+    setBookings((bs) => bs.map((b) => b.id === cancelBooking.id ? { ...b, status: 'cancelled', cancel_reason: cancelReason.trim() } : b))
+    setCancelBooking(null); setCancelReason(''); setActionLoading(false)
+  }
+
+  if (loading) return <LoadingScreen message="Loading bookings..." />
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'all', label: 'All' }, { key: 'created', label: 'Created' }, { key: 'assigned', label: 'Assigned' },
     { key: 'active', label: 'Active' }, { key: 'completed', label: 'Completed' }, { key: 'cancelled', label: 'Cancelled' },
   ]
 
-  const filtered = bookings.filter((b) => {
-    if (tab === 'all') return true
-    if (tab === 'active') return ['assigned', 'accepted', 'on_the_way', 'arrived', 'work_started'].includes(b.status)
-    return b.status === tab
-  })
-
-  const doAssign = async () => {
-    if (!assignBooking || !selectedTech) return
-    await supabase.from('bookings').update({ technician_id: selectedTech, status: 'assigned' }).eq('id', assignBooking.id)
-    await createNotification(selectedTech, 'New Booking Assigned', `Booking ${assignBooking.booking_number} assigned to you.`, 'info')
-    await createNotification(assignBooking.customer_id, 'Technician Assigned', `A technician has been assigned to booking ${assignBooking.booking_number}.`, 'info')
-    await createAuditLog(profile?.id || '', 'assign_technician', 'booking', assignBooking.id, `Assigned tech to ${assignBooking.booking_number}`)
-    toast('Technician assigned', 'success')
-    setAssignBooking(null); setSelectedTech('')
-    const { data } = await supabase.from('bookings').select('*').order('created_at', { ascending: false })
-    setBookings((data || []) as Booking[])
-  }
-
-  const doCancel = async () => {
-    if (!cancelBooking || !cancelReason.trim()) return
-    await supabase.from('bookings').update({ status: 'cancelled', cancel_reason: cancelReason, cancelled_by: profile?.id || null }).eq('id', cancelBooking.id)
-    await createNotification(cancelBooking.customer_id, 'Booking Cancelled', `Booking ${cancelBooking.booking_number} cancelled: ${cancelReason}`, 'error')
-    if (cancelBooking.technician_id) await createNotification(cancelBooking.technician_id, 'Booking Cancelled', `Booking ${cancelBooking.booking_number} cancelled.`, 'error')
-    await createAuditLog(profile?.id || '', 'cancel_booking', 'booking', cancelBooking.id, `Cancelled: ${cancelReason}`)
-    toast('Booking cancelled', 'info')
-    setCancelBooking(null); setCancelReason('')
-    const { data } = await supabase.from('bookings').select('*').order('created_at', { ascending: false })
-    setBookings((data || []) as Booking[])
-  }
-
-  if (loading) return <LoadingScreen message="Loading bookings..." />
-
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">All Bookings</h1>
+      <div><h1 className="text-2xl font-bold text-gray-900">All Bookings</h1><p className="text-gray-600">Manage and track all bookings</p></div>
+
       <div className="flex flex-wrap gap-2">
-        {tabs.map((t) => (
-          <button key={t.key} onClick={() => setTab(t.key)} className={cn('rounded-full px-3 py-1.5 text-sm font-medium', tab === t.key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200')}>{t.label}</button>
-        ))}
+        {tabs.map((t) => <Button key={t.key} size="sm" variant={tab === t.key ? 'primary' : 'outline'} onClick={() => setTab(t.key)}>{t.label}</Button>)}
       </div>
 
-      <Card>
-        <CardHeader><CardTitle>Bookings ({filtered.length})</CardTitle></CardHeader>
-        <CardContent>
-          {filtered.length === 0 ? <p className="text-gray-500 text-sm">No bookings found.</p> : (
-            <div className="space-y-2">
-              {filtered.map((b) => (
-                <div key={b.id} className="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-900">{b.booking_number} · {b.service_name}</p>
-                    <p className="text-sm text-gray-500">Customer: {customers[b.customer_id]?.name || '-'} · Tech: {b.technician_id ? (techs[b.technician_id]?.name || 'Unknown') : 'Unassigned'}</p>
-                    <p className="text-xs text-gray-400">{formatDate(b.scheduled_date)} · {formatCurrency(b.amount)}</p>
-                  </div>
+      <div className="space-y-3">
+        {filtered.length === 0 ? <p className="py-8 text-center text-gray-500">No bookings found.</p> : filtered.map((b) => {
+          const cust = customers[b.customer_id]
+          const tech = b.technician_id ? techs[b.technician_id] : null
+          return (
+            <Card key={b.id}><CardContent className="p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    <Badge color={BOOKING_STATUS_COLORS[b.status]}>{b.status}</Badge>
-                    <Button size="sm" variant="outline" onClick={() => setViewBooking(b)}><Eye className="h-4 w-4" /></Button>
-                    {b.status !== 'completed' && b.status !== 'cancelled' && <>
-                      <Button size="sm" variant="outline" onClick={() => setAssignBooking(b)}><UserPlus className="h-4 w-4" /></Button>
-                      <Button size="sm" variant="danger" onClick={() => setCancelBooking(b)}><XCircle className="h-4 w-4" /></Button>
-                    </>}
+                    <p className="font-medium text-gray-900">{b.service_name}</p>
+                    <Badge color={BOOKING_STATUS_COLORS[b.status]}>{b.status.replace(/_/g, ' ')}</Badge>
                   </div>
+                  <p className="text-sm text-gray-500">#{b.booking_number} · {cust?.name || 'Unknown'} · {tech?.name || 'Unassigned'}</p>
+                  <p className="text-sm text-gray-500"><Calendar className="mr-1 inline h-3 w-3" />{formatDate(b.scheduled_date)} · {formatCurrency(b.amount)}</p>
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setViewBooking(b)}><Eye className="mr-1 h-4 w-4" />Details</Button>
+                  {!['completed', 'cancelled'].includes(b.status) && <Button size="sm" variant="primary" onClick={() => setAssignBooking(b)}><UserCog className="mr-1 h-4 w-4" />Assign</Button>}
+                  {!['completed', 'cancelled'].includes(b.status) && <Button size="sm" variant="danger" onClick={() => setCancelBooking(b)}><Ban className="mr-1 h-4 w-4" />Cancel</Button>}
+                </div>
+              </div>
+            </CardContent></Card>
+          )
+        })}
+      </div>
 
-      <Modal open={!!viewBooking} onClose={() => setViewBooking(null)} title="Booking Details">
-        {viewBooking && (
-          <div className="space-y-1.5 text-sm">
-            <p><span className="font-medium">Booking #:</span> {viewBooking.booking_number}</p>
-            <p><span className="font-medium">Service:</span> {viewBooking.service_name}</p>
-            <p><span className="font-medium">Customer:</span> {customers[viewBooking.customer_id]?.name || '-'}</p>
-            <p><span className="font-medium">Technician:</span> {viewBooking.technician_id ? (techs[viewBooking.technician_id]?.name || 'Unknown') : 'Unassigned'}</p>
-            <p><span className="font-medium">Status:</span> <Badge color={BOOKING_STATUS_COLORS[viewBooking.status]}>{viewBooking.status}</Badge></p>
-            <p><span className="font-medium">Scheduled:</span> {formatDate(viewBooking.scheduled_date)}</p>
-            <p><span className="font-medium">Address:</span> {viewBooking.address}, {viewBooking.city}, {viewBooking.district}</p>
-            <p><span className="font-medium">Amount:</span> {formatCurrency(viewBooking.amount)}</p>
-            <p><span className="font-medium">Notes:</span> {viewBooking.customer_notes || '-'}</p>
+      <Modal open={!!assignBooking} onClose={() => { setAssignBooking(null); setSelectedTech('') }} title="Assign Technician">
+        {assignBooking && (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">Assign a technician to booking <span className="font-medium">#{assignBooking.booking_number}</span></p>
+            <div>
+              <Label htmlFor="tech">Select Technician</Label>
+              <Select id="tech" value={selectedTech} onChange={(e) => setSelectedTech(e.target.value)}>
+                <option value="">Choose a technician...</option>
+                {activeTechs.map((t) => <option key={t.id} value={t.id}>{t.name} - {t.city || 'N/A'}</option>)}
+              </Select>
+            </div>
+            <div className="flex gap-2"><Button variant="primary" onClick={assignTech} disabled={actionLoading || !selectedTech}>Assign</Button><Button variant="outline" onClick={() => { setAssignBooking(null); setSelectedTech('') }}>Cancel</Button></div>
           </div>
         )}
       </Modal>
 
-      <Modal open={!!assignBooking} onClose={() => { setAssignBooking(null); setSelectedTech('') }} title="Assign Technician">
-        <div className="space-y-3">
-          <p className="text-sm text-gray-600">Assign a technician to {assignBooking?.booking_number}</p>
-          <div><Label>Technician</Label><Select value={selectedTech} onChange={(e) => setSelectedTech(e.target.value)}>
-            <option value="">Select technician...</option>
-            {activeTechs.map((t) => <option key={t.id} value={t.id}>{t.name} ({t.city || '-'})</option>)}
-          </Select></div>
-          <div className="flex gap-2 justify-end"><Button variant="outline" size="sm" onClick={() => { setAssignBooking(null); setSelectedTech('') }}>Cancel</Button><Button size="sm" onClick={doAssign} disabled={!selectedTech}>Assign</Button></div>
-        </div>
+      <Modal open={!!cancelBooking} onClose={() => { setCancelBooking(null); setCancelReason('') }} title="Cancel Booking">
+        {cancelBooking && (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">Cancel booking <span className="font-medium">#{cancelBooking.booking_number}</span></p>
+            <div><Label htmlFor="creason">Cancellation Reason</Label><Textarea id="creason" value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} rows={4} /></div>
+            <div className="flex gap-2"><Button variant="danger" onClick={cancelBk} disabled={actionLoading || !cancelReason.trim()}>Cancel Booking</Button><Button variant="outline" onClick={() => { setCancelBooking(null); setCancelReason('') }}>Close</Button></div>
+          </div>
+        )}
       </Modal>
 
-      <Modal open={!!cancelBooking} onClose={() => { setCancelBooking(null); setCancelReason('') }} title="Cancel Booking">
-        <div className="space-y-3">
-          <Textarea rows={3} value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} placeholder="Cancel reason..." />
-          <div className="flex gap-2 justify-end"><Button variant="outline" size="sm" onClick={() => { setCancelBooking(null); setCancelReason('') }}>Cancel</Button><Button variant="danger" size="sm" onClick={doCancel} disabled={!cancelReason.trim()}>Confirm Cancel</Button></div>
-        </div>
+      <Modal open={!!viewBooking} onClose={() => setViewBooking(null)} title="Booking Details" className="max-w-2xl">
+        {viewBooking && (() => {
+          const cust = customers[viewBooking.customer_id]
+          const tech = viewBooking.technician_id ? techs[viewBooking.technician_id] : null
+          return (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div><p className="text-gray-500">Booking #</p><p className="font-medium">{viewBooking.booking_number}</p></div>
+                <div><p className="text-gray-500">Status</p><Badge color={BOOKING_STATUS_COLORS[viewBooking.status]}>{viewBooking.status.replace(/_/g, ' ')}</Badge></div>
+                <div><p className="text-gray-500">Service</p><p className="font-medium">{viewBooking.service_name}</p></div>
+                <div><p className="text-gray-500">Amount</p><p className="font-medium">{formatCurrency(viewBooking.amount)}</p></div>
+                <div><p className="text-gray-500">Scheduled Date</p><p className="font-medium">{formatDate(viewBooking.scheduled_date)}</p></div>
+                <div><p className="text-gray-500">Time</p><p className="font-medium">{viewBooking.scheduled_time || 'Flexible'}</p></div>
+                <div><p className="text-gray-500">Customer</p><p className="font-medium">{cust?.name || 'Unknown'}</p></div>
+                <div><p className="text-gray-500">Technician</p><p className="font-medium">{tech?.name || 'Unassigned'}</p></div>
+                <div><p className="text-gray-500">Address</p><p className="font-medium">{viewBooking.address}, {viewBooking.city}, {viewBooking.district} - {viewBooking.pincode}</p></div>
+              </div>
+              {viewBooking.customer_notes && <div><p className="text-gray-500">Customer Notes</p><p className="text-sm">{viewBooking.customer_notes}</p></div>}
+              {viewBooking.cancel_reason && <div><p className="text-gray-500">Cancel Reason</p><p className="text-sm text-red-600">{viewBooking.cancel_reason}</p></div>}
+            </div>
+          )
+        })()}
       </Modal>
     </div>
   )

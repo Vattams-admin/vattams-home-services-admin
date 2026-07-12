@@ -10,32 +10,16 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 export type UserRole = 'customer' | 'technician' | 'admin' | 'super_admin'
 
 export type VerificationStatus =
-  | 'pending_registration'
-  | 'fee_pending'
-  | 'under_review'
-  | 'approved'
-  | 'rejected'
-  | 'suspended'
+  | 'pending_registration' | 'fee_pending' | 'under_review'
+  | 'approved' | 'rejected' | 'suspended'
 
 export type Profile = {
-  id: string
-  email: string
-  name: string
-  mobile: string
-  role: UserRole
-  full_name: string | null
-  address: string | null
-  district: string | null
-  city: string | null
-  pincode: string | null
-  experience: string | null
-  skills: string[] | null
-  bio: string | null
-  status: string | null
-  is_available: boolean | null
-  rejection_reason: string | null
-  verification_status: VerificationStatus | null
-  created_at: string
+  id: string; email: string; name: string; mobile: string; role: UserRole
+  full_name: string | null; address: string | null; district: string | null
+  city: string | null; pincode: string | null; experience: string | null
+  skills: string[] | null; bio: string | null; status: string | null
+  is_available: boolean | null; rejection_reason: string | null
+  verification_status: VerificationStatus | null; created_at: string
 }
 
 export type BookingStatus =
@@ -43,25 +27,12 @@ export type BookingStatus =
   | 'on_the_way' | 'arrived' | 'work_started' | 'completed' | 'cancelled'
 
 export type Booking = {
-  id: string
-  booking_number: string
-  customer_id: string
-  technician_id: string | null
-  service_name: string
-  service_category_id: string | null
-  status: BookingStatus
-  scheduled_date: string
-  scheduled_time: string | null
-  address: string
-  city: string
-  district: string
-  pincode: string
-  customer_notes: string | null
-  amount: number
-  cancelled_by: string | null
-  cancel_reason: string | null
-  created_at: string
-  updated_at: string
+  id: string; booking_number: string; customer_id: string; technician_id: string | null
+  service_name: string; service_category_id: string | null; status: BookingStatus
+  scheduled_date: string; scheduled_time: string | null; address: string
+  city: string; district: string; pincode: string; customer_notes: string | null
+  amount: number; cancelled_by: string | null; cancel_reason: string | null
+  created_at: string; updated_at: string
 }
 
 export type BookingPhoto = {

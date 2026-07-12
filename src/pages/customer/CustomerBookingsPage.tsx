@@ -1,57 +1,53 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Eye, Circle as XCircle, MapPin } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import type { Booking, Profile } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
 import { useToast } from '@/hooks/use-toast'
-import { LoadingScreen } from '@/components/LoadingScreen'
+import { cn, formatDate, formatCurrency, BOOKING_STATUS_COLORS } from '@/lib/utils'
+import { createNotification, createAuditLog } from '@/lib/notifications'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Modal } from '@/components/ui/modal'
-import { Textarea, Select } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { formatDate, formatCurrency, BOOKING_STATUS_COLORS, cn } from '@/lib/utils'
-import { createNotification, createAuditLog } from '@/lib/notifications'
+import { LoadingScreen } from '@/components/LoadingScreen'
+import { Eye, MapPin, XCircle } from 'lucide-react'
 
-type Tab = 'all' | 'active' | 'completed' | 'cancelled'
-type BookingWithTech = Booking & { technician?: Profile | null }
+type FilterTab = 'all' | 'active' | 'completed' | 'cancelled'
 
 export function CustomerBookingsPage() {
   const { profile } = useAuth()
   const { toast } = useToast()
-  const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
-  const [bookings, setBookings] = useState<BookingWithTech[]>([])
-  const [tab, setTab] = useState<Tab>('all')
-  const [selected, setSelected] = useState<BookingWithTech | null>(null)
-  const [cancelling, setCancelling] = useState<BookingWithTech | null>(null)
-  const [cancelReason, setCancelReason] = useState('')
-  const [submitting, setSubmitting] = useState(false)
+  const [bookings, setBookings] = useState<Booking[]>([])
+  const [techMap, setTechMap] = useState<Record<string, Profile>>({})
+  const [tab, setTab] = useState<FilterTab>('all')
+  const [selected, setSelected] = useState<Booking | null>(null)
+  const [cancelling, setCancelling] = useState(false)
 
   useEffect(() => {
-    if (!profile) return
     let mounted = true;
     (async () => {
-      const { data: bk } = await supabase
-        .from('bookings').select('*').eq('customer_id', profile.id).order('created_at', { ascending: false })
-      if (!mounted || !bk) return
-      const techIds = [...new Set((bk as Booking[]).map((b) => b.technician_id).filter(Boolean))] as string[]
-      const techs: Record<string, Profile> = {}
+      if (!profile) return
+      const { data } = await supabase.from('bookings').select('*').eq('customer_id', profile.id).order('created_at', { ascending: false })
+      if (!mounted || !data) return
+      setBookings(data as Booking[])
+      const techIds = [...new Set(data.map((b) => b.technician_id).filter(Boolean))] as string[]
       if (techIds.length) {
-        const { data: td } = await supabase.from('profiles').select('*').in('id', techIds)
-        ;(td || []).forEach((t) => { techs[t.id] = t as Profile })
+        const { data: techs } = await supabase.from('profiles').select('*').in('id', techIds)
+        if (mounted && techs) {
+          const m: Record<string, Profile> = {}
+          techs.forEach((t) => { m[t.id] = t as Profile })
+          setTechMap(m)
+        }
       }
-      const enriched = (bk as Booking[]).map((b) => ({ ...b, technician: b.technician_id ? techs[b.technician_id] : null }))
-      if (mounted) { setBookings(enriched); setLoading(false) }
+      if (mounted) setLoading(false)
     })()
     return () => { mounted = false }
   }, [profile])
 
-  if (loading) return <LoadingScreen />
-
   const filtered = bookings.filter((b) => {
+    if (tab === 'all') return true
     if (tab === 'active') return !['completed', 'cancelled'].includes(b.status)
     if (tab === 'completed') return b.status === 'completed'
     if (tab === 'cancelled') return b.status === 'cancelled'
@@ -61,29 +57,31 @@ export function CustomerBookingsPage() {
   const canCancel = (s: string) => ['created', 'confirmed', 'assigned'].includes(s)
 
   const handleCancel = async () => {
-    if (!profile || !cancelling) return
-    setSubmitting(true)
-    const { error } = await supabase
-      .from('bookings').update({ status: 'cancelled', cancelled_by: 'customer', cancel_reason: cancelReason || null })
-      .eq('id', cancelling.id)
-    if (error) { toast(error.message, 'error'); setSubmitting(false); return }
-    if (cancelling.technician_id) {
-      await createNotification(cancelling.technician_id, 'Booking Cancelled', `Booking ${cancelling.booking_number} has been cancelled by the customer.`, 'booking')
-    }
-    await createAuditLog(profile.id, 'booking_cancelled', 'booking', cancelling.id, `Customer cancelled booking ${cancelling.booking_number}`)
-    setBookings((prev) => prev.map((b) => b.id === cancelling.id ? { ...b, status: 'cancelled' } : b))
+    if (!selected || !profile) return
+    setCancelling(true)
+    const { error } = await supabase.from('bookings').update({ status: 'cancelled', cancelled_by: profile.id }).eq('id', selected.id)
+    if (error) { toast('Failed to cancel booking', 'error'); setCancelling(false); return }
+    setBookings((bs) => bs.map((b) => b.id === selected.id ? { ...b, status: 'cancelled' } : b))
+    if (selected.technician_id) await createNotification(selected.technician_id, 'Booking Cancelled', `Booking #${selected.booking_number} has been cancelled by customer.`)
+    await createAuditLog(profile.id, 'booking_cancelled', 'booking', selected.id, `Cancelled booking #${selected.booking_number}`)
     toast('Booking cancelled successfully', 'success')
-    setCancelling(null); setCancelReason(''); setSubmitting(false)
+    setSelected(null)
+    setCancelling(false)
   }
 
-  const tabs: { key: Tab; label: string }[] = [
+  if (loading) return <LoadingScreen message="Loading bookings..." />
+
+  const tabs: { key: FilterTab; label: string }[] = [
     { key: 'all', label: 'All' }, { key: 'active', label: 'Active' },
     { key: 'completed', label: 'Completed' }, { key: 'cancelled', label: 'Cancelled' },
   ]
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">My Bookings</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900">My Bookings</h1>
+        <Link to="/customer/booking"><Button>Book New Service</Button></Link>
+      </div>
 
       <div className="flex gap-2 border-b border-gray-200">
         {tabs.map((t) => (
@@ -101,22 +99,22 @@ export function CustomerBookingsPage() {
         <div className="space-y-3">
           {filtered.map((b) => (
             <Card key={b.id}>
-              <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0 flex-1">
+              <CardContent className="flex items-center justify-between p-4">
+                <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    <p className="font-semibold text-gray-900">{b.service_name}</p>
+                    <p className="font-medium text-gray-900">{b.service_name}</p>
                     <Badge color={BOOKING_STATUS_COLORS[b.status]}>{b.status.replace(/_/g, ' ')}</Badge>
                   </div>
-                  <p className="mt-1 text-sm text-gray-500">{b.booking_number} · {formatDate(b.scheduled_date)}</p>
-                  {b.technician && <p className="text-sm text-gray-600">Technician: {b.technician.name}</p>}
-                  <p className="flex items-center gap-1 text-sm text-gray-500"><MapPin className="h-3 w-3" />{b.city}, {b.district}</p>
+                  <p className="text-sm text-gray-500">#{b.booking_number} · {formatDate(b.scheduled_date)}{b.scheduled_time ? ` · ${b.scheduled_time}` : ''}</p>
+                  <p className="text-sm text-gray-500"><MapPin className="mr-1 inline h-3 w-3" />{b.city}, {b.district}</p>
+                  {b.technician_id && techMap[b.technician_id] && <p className="text-sm text-gray-500">Technician: {techMap[b.technician_id].name}</p>}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col items-end gap-2">
                   <span className="font-semibold text-gray-900">{formatCurrency(b.amount)}</span>
-                  <Button variant="outline" size="sm" onClick={() => setSelected(b)}><Eye className="mr-1 h-4 w-4" />Details</Button>
-                  {canCancel(b.status) && (
-                    <Button variant="danger" size="sm" onClick={() => setCancelling(b)}><XCircle className="mr-1 h-4 w-4" />Cancel</Button>
-                  )}
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" onClick={() => setSelected(b)}><Eye className="mr-1 h-4 w-4" />Details</Button>
+                    {canCancel(b.status) && <Button size="sm" variant="danger" onClick={() => setSelected(b)}><XCircle className="mr-1 h-4 w-4" />Cancel</Button>}
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -126,41 +124,29 @@ export function CustomerBookingsPage() {
 
       <Modal open={!!selected} onClose={() => setSelected(null)} title="Booking Details">
         {selected && (
-          <div className="space-y-3 text-sm">
-            <Row label="Booking No." value={selected.booking_number} />
-            <Row label="Service" value={selected.service_name} />
-            <Row label="Status" value={<Badge color={BOOKING_STATUS_COLORS[selected.status]}>{selected.status.replace(/_/g, ' ')}</Badge>} />
-            <Row label="Scheduled Date" value={formatDate(selected.scheduled_date)} />
-            <Row label="Address" value={`${selected.address}, ${selected.city}, ${selected.district} - ${selected.pincode}`} />
-            <Row label="Amount" value={formatCurrency(selected.amount)} />
-            {selected.technician && <Row label="Technician" value={selected.technician.name} />}
-            {selected.customer_notes && <Row label="Notes" value={selected.customer_notes} />}
-            {selected.cancel_reason && <Row label="Cancel Reason" value={selected.cancel_reason} />}
-            <div className="flex gap-2 pt-2">
-              <Button variant="outline" size="sm" onClick={() => navigate(`/customer/track/${selected.id}`)}>Track</Button>
-              {selected.status === 'completed' && <Button variant="outline" size="sm" onClick={() => navigate(`/customer/review/${selected.id}`)}>Review</Button>}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="font-medium text-gray-900">{selected.service_name}</span>
+              <Badge color={BOOKING_STATUS_COLORS[selected.status]}>{selected.status.replace(/_/g, ' ')}</Badge>
             </div>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <p className="text-gray-500">Booking #</p><p className="text-gray-900">{selected.booking_number}</p>
+              <p className="text-gray-500">Date</p><p className="text-gray-900">{formatDate(selected.scheduled_date)}</p>
+              <p className="text-gray-500">Time</p><p className="text-gray-900">{selected.scheduled_time || 'Not set'}</p>
+              <p className="text-gray-500">Address</p><p className="text-gray-900">{selected.address}</p>
+              <p className="text-gray-500">City</p><p className="text-gray-900">{selected.city}, {selected.district} - {selected.pincode}</p>
+              <p className="text-gray-500">Amount</p><p className="text-gray-900">{formatCurrency(selected.amount)}</p>
+              {selected.technician_id && techMap[selected.technician_id] && (<><p className="text-gray-500">Technician</p><p className="text-gray-900">{techMap[selected.technician_id].name}</p></>)}
+              {selected.customer_notes && (<><p className="text-gray-500">Notes</p><p className="text-gray-900">{selected.customer_notes}</p></>)}
+            </div>
+            {canCancel(selected.status) && (
+              <Button variant="danger" className="w-full" onClick={handleCancel} disabled={cancelling}>
+                {cancelling ? 'Cancelling...' : 'Cancel Booking'}
+              </Button>
+            )}
           </div>
         )}
       </Modal>
-
-      <Modal open={!!cancelling} onClose={() => { setCancelling(null); setCancelReason('') }} title="Cancel Booking">
-        <div className="space-y-4">
-          <p className="text-sm text-gray-600">Are you sure you want to cancel booking <span className="font-semibold">{cancelling?.booking_number}</span>?</p>
-          <div>
-            <Label htmlFor="reason">Cancel Reason (optional)</Label>
-            <Textarea id="reason" rows={3} value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} placeholder="Reason for cancellation..." />
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => { setCancelling(null); setCancelReason('') }}>No, Keep It</Button>
-            <Button variant="danger" disabled={submitting} onClick={handleCancel}>{submitting ? 'Cancelling...' : 'Yes, Cancel'}</Button>
-          </div>
-        </div>
-      </Modal>
     </div>
   )
-}
-
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
-  return <div className="flex justify-between gap-4"><span className="text-gray-500">{label}</span><span className="text-right font-medium text-gray-900">{value}</span></div>
 }

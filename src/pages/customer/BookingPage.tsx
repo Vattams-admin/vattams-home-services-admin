@@ -1,156 +1,123 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Calendar, MapPin, FileText, Tag } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import type { Profile } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
 import { useToast } from '@/hooks/use-toast'
-import { LoadingScreen } from '@/components/LoadingScreen'
+import { sanitizeInput } from '@/lib/utils'
+import { createNotification, createAuditLog } from '@/lib/notifications'
+import { TAMIL_NADU_DISTRICTS } from '@/lib/constants'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input, Textarea, Select } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { sanitizeInput } from '@/lib/utils'
-import { TAMIL_NADU_DISTRICTS, SERVICE_CITIES } from '@/lib/constants'
-import { createNotification, createAuditLog } from '@/lib/notifications'
-
-type ServiceCat = { id: string; name: string; base_price: number }
+import { LoadingScreen } from '@/components/LoadingScreen'
+import type { FormEvent } from 'react'
 
 export function BookingPage() {
   const { profile } = useAuth()
   const { toast } = useToast()
   const navigate = useNavigate()
-  const [loading, setLoading] = useState(true)
-  const [submitting, setSubmitting] = useState(false)
-  const [services, setServices] = useState<ServiceCat[]>([])
-
+  const [loading, setLoading] = useState(false)
+  const [pageLoading, setPageLoading] = useState(true)
   const [form, setForm] = useState({
-    service_name: '', service_category_id: '', scheduled_date: '', scheduled_time: '',
-    address: '', city: '', district: '', pincode: '', customer_notes: '', amount: '',
+    service_name: '', scheduled_date: '', scheduled_time: '', address: '',
+    city: '', district: '', pincode: '', customer_notes: '', amount: '',
   })
 
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      const { data } = await supabase.from('service_categories').select('id, name, base_price').eq('is_active', true).order('sort_order')
-      if (mounted) { setServices((data || []) as ServiceCat[]); setLoading(false) }
-    })()
-    return () => { mounted = false }
-  }, [])
+    if (profile) {
+      setForm((f) => ({
+        ...f,
+        address: profile.address || '', city: profile.city || '',
+        district: profile.district || '', pincode: profile.pincode || '',
+      }))
+    }
+    setPageLoading(false)
+  }, [profile])
 
-  if (loading) return <LoadingScreen />
-
-  const update = (k: string, v: string) => setForm({ ...form, [k]: v })
-
-  const onServiceChange = (name: string) => {
-    const svc = services.find((s) => s.name === name)
-    setForm({ ...form, service_name: name, service_category_id: svc?.id || '', amount: svc ? String(svc.base_price) : '' })
-  }
+  const handleChange = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }))
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (!profile) return
-    setSubmitting(true)
-    const payload = {
-      customer_id: profile.id,
-      service_name: form.service_name,
-      service_category_id: form.service_category_id || null,
-      scheduled_date: form.scheduled_date || null,
-      scheduled_time: form.scheduled_time || null,
-      address: sanitizeInput(form.address),
-      city: sanitizeInput(form.city),
-      district: form.district,
-      pincode: form.pincode,
-      customer_notes: sanitizeInput(form.customer_notes),
-      amount: Number(form.amount) || 0,
-      status: 'created',
+    if (!form.service_name || !form.scheduled_date || !form.address || !form.city || !form.district || !form.pincode) {
+      toast('Please fill all required fields', 'warning'); return
     }
-    const { data, error } = await supabase.from('bookings').insert(payload).select().single()
-    if (error) { toast(error.message, 'error'); setSubmitting(false); return }
-    const booking = data as { id: string; booking_number: string }
-    await createNotification(profile.id, 'Booking Created', `Your booking ${booking.booking_number} for ${form.service_name} has been created successfully.`, 'booking')
-    await createAuditLog(profile.id, 'booking_created', 'booking', booking.id, `Customer created booking ${booking.booking_number}`)
+    setLoading(true)
+    const amount = parseFloat(form.amount) || 0
+    const { data, error } = await supabase.from('bookings').insert({
+      customer_id: profile.id, service_name: sanitizeInput(form.service_name),
+      scheduled_date: form.scheduled_date, scheduled_time: form.scheduled_time || null,
+      address: sanitizeInput(form.address), city: sanitizeInput(form.city),
+      district: form.district, pincode: sanitizeInput(form.pincode),
+      customer_notes: form.customer_notes ? sanitizeInput(form.customer_notes) : null,
+      amount, status: 'created',
+    }).select().single()
+    if (error) { toast('Failed to create booking', 'error'); setLoading(false); return }
+    await createNotification(profile.id, 'Booking Created', `Your booking #${data.booking_number} for ${data.service_name} has been created.`)
+    await createAuditLog(profile.id, 'booking_created', 'booking', data.id, `Created booking #${data.booking_number}`)
     toast('Booking created successfully!', 'success')
+    setLoading(false)
     navigate('/customer/bookings')
   }
 
-  return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Book a Service</h1>
-        <p className="text-sm text-gray-600">Fill in the details below to schedule your service</p>
-      </div>
+  if (pageLoading) return <LoadingScreen message="Loading..." />
 
-      <Card>
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold text-gray-900">Book a Service</h1>
+      <Card className="max-w-2xl">
         <CardHeader><CardTitle>Service Details</CardTitle></CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <Label htmlFor="service">Service Type</Label>
-              <Select id="service" required value={form.service_name} onChange={(e) => onServiceChange(e.target.value)}>
-                <option value="">Select a service</option>
-                {services.map((s) => <option key={s.id} value={s.name}>{s.name} (from ₹{s.base_price})</option>)}
-              </Select>
+              <Label>Service Name *</Label>
+              <Input value={form.service_name} onChange={(e) => handleChange('service_name', e.target.value)} placeholder="e.g. AC Repair, Plumbing, Electrical" required />
             </div>
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="date">Scheduled Date</Label>
-                <Input id="date" type="date" required value={form.scheduled_date} onChange={(e) => update('scheduled_date', e.target.value)} min={new Date().toISOString().split('T')[0]} />
+                <Label>Scheduled Date *</Label>
+                <Input type="date" value={form.scheduled_date} onChange={(e) => handleChange('scheduled_date', e.target.value)} required />
               </div>
               <div>
-                <Label htmlFor="time">Preferred Time</Label>
-                <Select id="time" value={form.scheduled_time} onChange={(e) => update('scheduled_time', e.target.value)}>
-                  <option value="">Any time</option>
-                  <option value="09:00-12:00">Morning (9 AM - 12 PM)</option>
-                  <option value="12:00-15:00">Afternoon (12 PM - 3 PM)</option>
-                  <option value="15:00-18:00">Evening (3 PM - 6 PM)</option>
-                </Select>
+                <Label>Scheduled Time</Label>
+                <Input type="time" value={form.scheduled_time} onChange={(e) => handleChange('scheduled_time', e.target.value)} />
               </div>
             </div>
-
             <div>
-              <Label htmlFor="address">Address</Label>
-              <Textarea id="address" required rows={2} value={form.address} onChange={(e) => update('address', e.target.value)} placeholder="House no, Street, Landmark..." />
+              <Label>Address *</Label>
+              <Textarea value={form.address} onChange={(e) => handleChange('address', e.target.value)} placeholder="Full address" rows={2} required />
             </div>
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="city">City</Label>
-                <Select id="city" required value={form.city} onChange={(e) => update('city', e.target.value)}>
-                  <option value="">Select city</option>
-                  {SERVICE_CITIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                </Select>
+                <Label>City *</Label>
+                <Input value={form.city} onChange={(e) => handleChange('city', e.target.value)} placeholder="City" required />
               </div>
               <div>
-                <Label htmlFor="district">District</Label>
-                <Select id="district" required value={form.district} onChange={(e) => update('district', e.target.value)}>
-                  <option value="">Select district</option>
+                <Label>District *</Label>
+                <Select value={form.district} onChange={(e) => handleChange('district', e.target.value)} required>
+                  <option value="">Select District</option>
                   {TAMIL_NADU_DISTRICTS.map((d) => <option key={d} value={d}>{d}</option>)}
                 </Select>
               </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="pincode">Pincode</Label>
-                <Input id="pincode" required value={form.pincode} onChange={(e) => update('pincode', e.target.value)} placeholder="600001" maxLength={6} pattern="[0-9]{6}" />
+                <Label>Pincode *</Label>
+                <Input value={form.pincode} onChange={(e) => handleChange('pincode', e.target.value)} placeholder="6-digit pincode" maxLength={6} required />
+              </div>
+              <div>
+                <Label>Amount (₹)</Label>
+                <Input type="number" min="0" value={form.amount} onChange={(e) => handleChange('amount', e.target.value)} placeholder="0" />
               </div>
             </div>
-
             <div>
-              <Label htmlFor="notes">Description / Notes</Label>
-              <Textarea id="notes" rows={3} value={form.customer_notes} onChange={(e) => update('customer_notes', e.target.value)} placeholder="Describe the issue or service needed..." />
+              <Label>Notes</Label>
+              <Textarea value={form.customer_notes} onChange={(e) => handleChange('customer_notes', e.target.value)} placeholder="Any special instructions..." rows={3} />
             </div>
-
-            <div>
-              <Label htmlFor="amount">Amount (₹)</Label>
-              <Input id="amount" type="number" required value={form.amount} onChange={(e) => update('amount', e.target.value)} min="0" />
-            </div>
-
-            <div className="flex gap-2 pt-2">
-              <Button type="submit" disabled={submitting} className="flex-1">
-                {submitting ? 'Creating booking...' : 'Create Booking'}
-              </Button>
-              <Button type="button" variant="outline" onClick={() => navigate('/customer/bookings')}>Cancel</Button>
-            </div>
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? 'Creating Booking...' : 'Create Booking'}
+            </Button>
           </form>
         </CardContent>
       </Card>

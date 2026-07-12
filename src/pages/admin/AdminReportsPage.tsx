@@ -7,115 +7,128 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { generateReportPDF, exportToCSV } from '@/lib/pdf'
-import { Calendar, CircleCheck as CheckCircle, Circle as XCircle, IndianRupee, TrendingUp, FileText, Download } from 'lucide-react'
+import { TrendingUp, Calendar, CheckCircle, XCircle, Download, Wrench, Star } from 'lucide-react'
 
 export function AdminReportsPage() {
   const [loading, setLoading] = useState(true)
   const [bookings, setBookings] = useState<Booking[]>([])
-  const [profiles, setProfiles] = useState<Record<string, Profile>>({})
+  const [profiles, setProfiles] = useState<Profile[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
-  const [transactions, setTransactions] = useState<RevenueTransaction[]>([])
+  const [stats, setStats] = useState({ total: 0, completedRate: 0, cancelRate: 0, revenue: 0, avgValue: 0 })
 
   useEffect(() => {
     let mounted = true;
     (async () => {
-      const [{ data: bks }, { data: prs }, { data: invs }, { data: txns }] = await Promise.all([
-        supabase.from('bookings').select('*'),
-        supabase.from('profiles').select('*'),
-        supabase.from('invoices').select('*'),
-        supabase.from('revenue_transactions').select('*'),
-      ])
+      const { data: bks } = await supabase.from('bookings').select('*').order('created_at', { ascending: false })
+      const { data: profs } = await supabase.from('profiles').select('*')
+      const { data: invs } = await supabase.from('invoices').select('*')
       if (!mounted) return
-      setBookings((bks || []) as Booking[])
-      setProfiles(Object.fromEntries(((prs || []) as Profile[]).map((p) => [p.id, p])))
+      const bkList = (bks || []) as Booking[]
+      setBookings(bkList)
+      setProfiles((profs || []) as Profile[])
       setInvoices((invs || []) as Invoice[])
-      setTransactions((txns || []) as RevenueTransaction[])
+      const completed = bkList.filter((b) => b.status === 'completed').length
+      const cancelled = bkList.filter((b) => b.status === 'cancelled').length
+      const revenue = (invs || []).filter((i) => i.status === 'paid').reduce((s, i) => s + (i.amount || 0), 0)
+      setStats({
+        total: bkList.length,
+        completedRate: bkList.length > 0 ? Math.round((completed / bkList.length) * 100) : 0,
+        cancelRate: bkList.length > 0 ? Math.round((cancelled / bkList.length) * 100) : 0,
+        revenue,
+        avgValue: bkList.length > 0 ? Math.round(revenue / bkList.length) : 0,
+      })
       setLoading(false)
     })()
     return () => { mounted = false }
   }, [])
 
-  const total = bookings.length
-  const completed = bookings.filter((b) => b.status === 'completed').length
-  const cancelled = bookings.filter((b) => b.status === 'cancelled').length
-  const completedRate = total > 0 ? Math.round((completed / total) * 100) : 0
-  const cancelRate = total > 0 ? Math.round((cancelled / total) * 100) : 0
-  const totalRevenue = invoices.reduce((s, i) => s + i.amount, 0)
-  const avgValue = total > 0 ? Math.round(bookings.reduce((s, b) => s + b.amount, 0) / total) : 0
-
-  const byStatus: Record<string, number> = {}
-  bookings.forEach((b) => { byStatus[b.status] = (byStatus[b.status] || 0) + 1 })
-  const maxStatus = Math.max(...Object.values(byStatus), 1)
-
-  const serviceCount: Record<string, number> = {}
-  bookings.forEach((b) => { serviceCount[b.service_name] = (serviceCount[b.service_name] || 0) + 1 })
-  const topServices = Object.entries(serviceCount).sort((a, b) => b[1] - a[1]).slice(0, 5)
-
-  const techCount: Record<string, number> = {}
-  bookings.filter((b) => b.technician_id && b.status === 'completed').forEach((b) => { techCount[b.technician_id!] = (techCount[b.technician_id!] || 0) + 1 })
-  const topTechs = Object.entries(techCount).sort((a, b) => b[1] - a[1]).slice(0, 5)
-
-  const months: { label: string; revenue: number }[] = []
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(); d.setMonth(d.getMonth() - i)
-    const m = d.getMonth(); const y = d.getFullYear()
-    const rev = invoices.filter((inv) => { const id = new Date(inv.created_at); return id.getMonth() === m && id.getFullYear() === y }).reduce((s, inv) => s + inv.amount, 0)
-    months.push({ label: d.toLocaleString('en-IN', { month: 'short' }), revenue: rev })
-  }
-  const maxMonth = Math.max(...months.map((m) => m.revenue), 1)
-
   if (loading) return <LoadingScreen message="Loading reports..." />
 
-  const cards = [
-    { label: 'Total Bookings', value: total, icon: Calendar, color: 'text-blue-600 bg-blue-50' },
-    { label: 'Completed Rate', value: `${completedRate}%`, icon: CheckCircle, color: 'text-green-600 bg-green-50' },
-    { label: 'Cancellation Rate', value: `${cancelRate}%`, icon: XCircle, color: 'text-red-600 bg-red-50' },
-    { label: 'Total Revenue', value: formatCurrency(totalRevenue), icon: IndianRupee, color: 'text-indigo-600 bg-indigo-50' },
-    { label: 'Avg Booking Value', value: formatCurrency(avgValue), icon: TrendingUp, color: 'text-purple-600 bg-purple-50' },
+  const techMap: Record<string, Profile> = {}
+  profiles.filter((p) => p.role === 'technician').forEach((t) => { techMap[t.id] = t })
+
+  const statusCounts: Record<string, number> = {}
+  bookings.forEach((b) => { statusCounts[b.status] = (statusCounts[b.status] || 0) + 1 })
+  const maxStatusCount = Math.max(...Object.values(statusCounts), 1)
+
+  const serviceCounts: Record<string, number> = {}
+  bookings.forEach((b) => { serviceCounts[b.service_name] = (serviceCounts[b.service_name] || 0) + 1 })
+  const topServices = Object.entries(serviceCounts).sort(([, a], [, b]) => b - a).slice(0, 5)
+
+  const techBookingCounts: Record<string, number> = {}
+  bookings.forEach((b) => { if (b.technician_id) techBookingCounts[b.technician_id] = (techBookingCounts[b.technician_id] || 0) + 1 })
+  const topTechs = Object.entries(techBookingCounts).sort(([, a], [, b]) => b - a).slice(0, 5)
+
+  const now = new Date()
+  const monthlyRevenue: { month: string; revenue: number }[] = []
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const monthName = d.toLocaleDateString('en-IN', { month: 'short' })
+    const rev = invoices.filter((inv) => { const id = new Date(inv.created_at); return id.getMonth() === d.getMonth() && id.getFullYear() === d.getFullYear() && inv.status === 'paid' }).reduce((s, i) => s + (i.amount || 0), 0)
+    monthlyRevenue.push({ month: monthName, revenue: rev })
+  }
+  const maxMonthlyRev = Math.max(...monthlyRevenue.map((m) => m.revenue), 1)
+
+  const statCards = [
+    { label: 'Total Bookings', value: stats.total, icon: Calendar, color: 'text-blue-600 bg-blue-50' },
+    { label: 'Completed Rate', value: `${stats.completedRate}%`, icon: CheckCircle, color: 'text-green-600 bg-green-50' },
+    { label: 'Cancellation Rate', value: `${stats.cancelRate}%`, icon: XCircle, color: 'text-red-600 bg-red-50' },
+    { label: 'Total Revenue', value: formatCurrency(stats.revenue), icon: TrendingUp, color: 'text-purple-600 bg-purple-50' },
+    { label: 'Avg Booking Value', value: formatCurrency(stats.avgValue), icon: Star, color: 'text-amber-600 bg-amber-50' },
   ]
 
   const exportPDF = () => {
-    const rows = bookings.map((b) => [b.booking_number, b.service_name, profiles[b.customer_id]?.name || '-', b.status, formatDate(b.created_at), b.amount])
-    generateReportPDF('Bookings Report', ['Booking #', 'Service', 'Customer', 'Status', 'Date', 'Amount'], rows, [
-      { label: 'Total Bookings', value: String(total) }, { label: 'Completed', value: String(completed) },
-      { label: 'Cancelled', value: String(cancelled) }, { label: 'Total Revenue', value: formatCurrency(totalRevenue) },
+    const rows = bookings.map((b) => [b.booking_number, b.service_name, b.status, formatDate(b.scheduled_date), formatCurrency(b.amount)])
+    generateReportPDF('Bookings Report', ['Booking #', 'Service', 'Status', 'Date', 'Amount'], rows, [
+      { label: 'Total Bookings', value: String(stats.total) },
+      { label: 'Completed Rate', value: `${stats.completedRate}%` },
+      { label: 'Cancellation Rate', value: `${stats.cancelRate}%` },
+      { label: 'Total Revenue', value: formatCurrency(stats.revenue) },
+      { label: 'Avg Booking Value', value: formatCurrency(stats.avgValue) },
     ])
   }
+
   const exportCSV = () => {
-    const rows = bookings.map((b) => [b.booking_number, b.service_name, profiles[b.customer_id]?.name || '-', b.status, b.created_at, b.amount])
-    exportToCSV('bookings-report', ['Booking #', 'Service', 'Customer', 'Status', 'Date', 'Amount'], rows)
+    const rows = bookings.map((b) => [b.booking_number, b.service_name, b.status, b.scheduled_date, b.amount])
+    exportToCSV('bookings-report', ['Booking #', 'Service', 'Status', 'Date', 'Amount'], rows)
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Reports & Analytics</h1>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div><h1 className="text-2xl font-bold text-gray-900">Reports & Analytics</h1><p className="text-gray-600">Platform performance overview</p></div>
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={exportPDF}><FileText className="h-4 w-4 mr-1" />PDF</Button>
-          <Button size="sm" variant="outline" onClick={exportCSV}><Download className="h-4 w-4 mr-1" />CSV</Button>
+          <Button variant="outline" onClick={exportPDF}><Download className="mr-2 h-4 w-4" />Export PDF</Button>
+          <Button variant="outline" onClick={exportCSV}><Download className="mr-2 h-4 w-4" />Export CSV</Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        {cards.map((c) => { const Icon = c.icon; return (
-          <Card key={c.label}><CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className={cn('rounded-lg p-2.5', c.color)}><Icon className="h-5 w-5" /></div>
-              <div><p className="text-xs text-gray-500">{c.label}</p><p className="text-lg font-bold text-gray-900">{c.value}</p></div>
-            </div>
-          </CardContent></Card>
-        )})}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        {statCards.map((s) => {
+          const Icon = s.icon
+          return (
+            <Card key={s.label}><CardContent className="flex items-center gap-3 p-4">
+              <div className={cn('rounded-lg p-3', s.color)}><Icon className="h-6 w-6" /></div>
+              <div><p className="text-xs text-gray-600">{s.label}</p><p className="text-lg font-bold text-gray-900">{s.value}</p></div>
+            </CardContent></Card>
+          )
+        })}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader><CardTitle>Bookings by Status</CardTitle></CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              {Object.entries(byStatus).map(([status, count]) => (
-                <div key={status}>
-                  <div className="flex justify-between text-sm mb-1"><span className="capitalize">{status.replace(/_/g, ' ')}</span><span>{count}</span></div>
-                  <div className="h-3 w-full rounded bg-gray-100"><div className={cn('h-3 rounded', BOOKING_STATUS_COLORS[status])} style={{ width: `${(count / maxStatus) * 100}%` }} /></div>
+            <div className="space-y-3">
+              {Object.entries(statusCounts).map(([status, count]) => (
+                <div key={status} className="space-y-1">
+                  <div className="flex items-center justify-between text-sm">
+                    <Badge color={BOOKING_STATUS_COLORS[status]}>{status.replace(/_/g, ' ')}</Badge>
+                    <span className="font-medium">{count}</span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-gray-100">
+                    <div className="h-full rounded-full bg-blue-500" style={{ width: `${(count / maxStatusCount) * 100}%` }} />
+                  </div>
                 </div>
               ))}
             </div>
@@ -123,28 +136,34 @@ export function AdminReportsPage() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Revenue by Month (Last 6)</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Revenue by Month (Last 6 Months)</CardTitle></CardHeader>
           <CardContent>
-            <div className="flex items-end gap-2 h-48">
-              {months.map((m) => (
-                <div key={m.label} className="flex-1 flex flex-col items-center gap-1">
-                  <div className="w-full bg-blue-500 rounded-t" style={{ height: `${(m.revenue / maxMonth) * 100}%` }} />
-                  <span className="text-xs text-gray-500">{m.label}</span>
+            <div className="space-y-3">
+              {monthlyRevenue.map((m) => (
+                <div key={m.month} className="space-y-1">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-700">{m.month}</span>
+                    <span className="font-medium text-gray-900">{formatCurrency(m.revenue)}</span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-gray-100">
+                    <div className="h-full rounded-full bg-green-500" style={{ width: `${(m.revenue / maxMonthlyRev) * 100}%` }} />
+                  </div>
                 </div>
               ))}
             </div>
           </CardContent>
         </Card>
-      </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader><CardTitle>Top Services</CardTitle></CardHeader>
           <CardContent>
-            {topServices.length === 0 ? <p className="text-gray-500 text-sm">No data.</p> : (
+            {topServices.length === 0 ? <p className="text-center text-gray-500">No data available.</p> : (
               <div className="space-y-2">
-                {topServices.map(([s, c]) => (
-                  <div key={s} className="flex items-center justify-between rounded-lg border p-2 text-sm"><span className="font-medium">{s}</span><Badge color="bg-blue-100 text-blue-700">{c} bookings</Badge></div>
+                {topServices.map(([service, count], i) => (
+                  <div key={service} className="flex items-center justify-between rounded-lg border border-gray-100 p-2">
+                    <div className="flex items-center gap-2"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">{i + 1}</span><span className="text-sm font-medium">{service}</span></div>
+                    <Badge color="bg-blue-50 text-blue-700">{count} bookings</Badge>
+                  </div>
                 ))}
               </div>
             )}
@@ -154,11 +173,21 @@ export function AdminReportsPage() {
         <Card>
           <CardHeader><CardTitle>Top Technicians</CardTitle></CardHeader>
           <CardContent>
-            {topTechs.length === 0 ? <p className="text-gray-500 text-sm">No data.</p> : (
+            {topTechs.length === 0 ? <p className="text-center text-gray-500">No data available.</p> : (
               <div className="space-y-2">
-                {topTechs.map(([id, c]) => (
-                  <div key={id} className="flex items-center justify-between rounded-lg border p-2 text-sm"><span className="font-medium">{profiles[id]?.name || 'Unknown'}</span><Badge color="bg-green-100 text-green-700">{c} completed</Badge></div>
-                ))}
+                {topTechs.map(([techId, count], i) => {
+                  const tech = techMap[techId]
+                  return (
+                    <div key={techId} className="flex items-center justify-between rounded-lg border border-gray-100 p-2">
+                      <div className="flex items-center gap-2">
+                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-purple-100 text-xs font-bold text-purple-700">{i + 1}</span>
+                        <Wrench className="h-4 w-4 text-gray-400" />
+                        <span className="text-sm font-medium">{tech?.name || 'Unknown'}</span>
+                      </div>
+                      <Badge color="bg-purple-50 text-purple-700">{count} jobs</Badge>
+                    </div>
+                  )
+                })}
               </div>
             )}
           </CardContent>

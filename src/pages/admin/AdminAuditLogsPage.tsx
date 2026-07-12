@@ -3,63 +3,83 @@ import { supabase } from '@/lib/supabase'
 import type { AuditLog, Profile } from '@/lib/supabase'
 import { cn, formatDateTime } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { LoadingScreen } from '@/components/LoadingScreen'
-import { Search, ScrollText } from 'lucide-react'
+import { Search, History } from 'lucide-react'
 
 export function AdminAuditLogsPage() {
   const [loading, setLoading] = useState(true)
-  const [logs, setLogs] = useState<AuditLog[]>([])
-  const [profiles, setProfiles] = useState<Record<string, Profile>>({})
+  const [logs, setLogs] = useState<(AuditLog & { user_name?: string })[]>([])
   const [search, setSearch] = useState('')
+  const [actionFilter, setActionFilter] = useState('')
 
   useEffect(() => {
     let mounted = true;
     (async () => {
-      const { data: lgs } = await supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(100)
+      const { data: logData } = await supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(100)
       if (!mounted) return
-      setLogs((lgs || []) as AuditLog[])
-      const uIds = [...new Set((lgs || []).map((l) => l.user_id).filter(Boolean))]
-      if (uIds.length > 0) {
-        const { data: prs } = await supabase.from('profiles').select('*').in('id', uIds)
-        if (mounted) setProfiles(Object.fromEntries(((prs || []) as Profile[]).map((p) => [p.id, p])))
+      const logList = (logData || []) as AuditLog[]
+      const userIds = [...new Set(logList.map((l) => l.user_id))]
+      const userMap: Record<string, Profile> = {}
+      if (userIds.length > 0) {
+        const { data: profs } = await supabase.from('profiles').select('*').in('id', userIds)
+        ;(profs || []).forEach((p) => { userMap[(p as Profile).id] = p as Profile })
       }
-      if (mounted) setLoading(false)
+      const enriched = logList.map((l) => ({ ...l, user_name: userMap[l.user_id]?.name || 'Unknown' }))
+      if (mounted) { setLogs(enriched); setLoading(false) }
     })()
     return () => { mounted = false }
   }, [])
 
+  if (loading) return <LoadingScreen message="Loading audit logs..." />
+
   const filtered = logs.filter((l) => {
     const q = search.toLowerCase()
-    return l.action.toLowerCase().includes(q) || l.entity_type.toLowerCase().includes(q) || (l.details || '').toLowerCase().includes(q)
+    const a = actionFilter.toLowerCase()
+    const matchSearch = !q || l.action.toLowerCase().includes(q) || l.entity_type.toLowerCase().includes(q) || (l.details || '').toLowerCase().includes(q)
+    const matchAction = !a || l.action.toLowerCase().includes(a)
+    return matchSearch && matchAction
   })
 
-  if (loading) return <LoadingScreen message="Loading audit logs..." />
+  const uniqueActions = [...new Set(logs.map((l) => l.action))].sort()
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Audit Logs</h1>
+      <div><h1 className="text-2xl font-bold text-gray-900">Audit Logs</h1><p className="text-gray-600">Track all admin actions ({logs.length} records)</p></div>
 
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-        <Input className="pl-9" placeholder="Search by action, entity type, or details..." value={search} onChange={(e) => setSearch(e.target.value)} />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <Input className="pl-10" placeholder="Search by action, entity, or details..." value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+        <div>
+          <Label htmlFor="actionFilter">Filter by Action</Label>
+          <Input id="actionFilter" list="actions" placeholder="Filter by action..." value={actionFilter} onChange={(e) => setActionFilter(e.target.value)} />
+          <datalist id="actions">{uniqueActions.map((a) => <option key={a} value={a} />)}</datalist>
+        </div>
       </div>
 
       <Card>
-        <CardHeader><CardTitle className="flex items-center gap-2"><ScrollText className="h-5 w-5 text-blue-600" />Recent Activity ({filtered.length})</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Activity History</CardTitle></CardHeader>
         <CardContent>
-          {filtered.length === 0 ? <p className="text-gray-500 text-sm">No audit logs found.</p> : (
-            <div className="space-y-2 max-h-[70vh] overflow-y-auto">
+          {filtered.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 py-12 text-center">
+              <History className="h-12 w-12 text-gray-300" />
+              <p className="text-gray-500">No audit logs found.</p>
+            </div>
+          ) : (
+            <div className="max-h-[600px] space-y-2 overflow-y-auto">
               {filtered.map((l) => (
-                <div key={l.id} className="flex flex-col gap-1 rounded-lg border p-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="flex-1">
+                <div key={l.id} className="flex flex-col gap-2 rounded-lg border border-gray-100 p-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <Badge color="bg-blue-100 text-blue-700">{l.action}</Badge>
-                      <span className="text-xs text-gray-500">{l.entity_type}{l.entity_id ? ` · ${l.entity_id.slice(0, 8)}` : ''}</span>
+                      <Badge color="bg-blue-50 text-blue-700">{l.action}</Badge>
+                      <Badge color="bg-gray-100 text-gray-700">{l.entity_type}</Badge>
                     </div>
-                    {l.details && <p className="text-sm text-gray-600 mt-1">{l.details}</p>}
-                    <p className="text-xs text-gray-400 mt-1">By: {profiles[l.user_id]?.name || 'System'} · {formatDateTime(l.created_at)}</p>
+                    <p className="text-sm text-gray-600">{l.details || 'No details'}</p>
+                    <p className="text-xs text-gray-500">By {l.user_name} · {formatDateTime(l.created_at)}{l.entity_id ? ` · ID: ${l.entity_id.slice(0, 8)}` : ''}</p>
                   </div>
                 </div>
               ))}

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { createContext, useContext, useState, useCallback } from 'react'
-import { CircleCheck as CheckCircle, Circle as XCircle, CircleAlert as AlertCircle, Info, X } from 'lucide-react'
+import { CheckCircle, XCircle, AlertCircle, Info, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 type ToastVariant = 'success' | 'error' | 'warning' | 'info'

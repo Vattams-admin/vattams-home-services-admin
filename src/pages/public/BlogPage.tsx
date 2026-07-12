@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Calendar, ArrowRight, User } from 'lucide-react'
+import { Calendar, ArrowRight, Newspaper } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { LoadingScreen } from '@/components/LoadingScreen'
-import { supabase } from '@/lib/supabase'
 import { formatDate } from '@/lib/utils'
+import { supabase } from '@/lib/supabase'
 
 type BlogPost = {
   id: string
@@ -13,89 +12,78 @@ type BlogPost = {
   excerpt: string
   content: string | null
   author: string | null
-  published_at: string
+  published_at: string | null
   image_url: string | null
 }
 
 const placeholderPosts: BlogPost[] = [
-  { id: '1', title: '5 Tips to Maintain Your AC During Summer', excerpt: 'Keep your air conditioner running efficiently with these simple maintenance tips from our expert technicians.', content: null, author: 'VATTAMS Team', published_at: '2024-03-15', image_url: null },
-  { id: '2', title: 'Common Washing Machine Problems and Solutions', excerpt: 'From drainage issues to spin cycle problems, learn how to identify and fix common washing machine faults.', content: null, author: 'VATTAMS Team', published_at: '2024-03-10', image_url: null },
-  { id: '3', title: 'How to Choose the Right Water Purifier for Your Home', excerpt: 'A comprehensive guide to selecting the best water purifier based on water quality and household needs.', content: null, author: 'VATTAMS Team', published_at: '2024-03-05', image_url: null },
-  { id: '4', title: 'Electrical Safety Tips Every Homeowner Should Know', excerpt: 'Protect your family and home with these essential electrical safety guidelines from our certified electricians.', content: null, author: 'VATTAMS Team', published_at: '2024-02-28', image_url: null },
-  { id: '5', title: 'Why Regular Plumbing Maintenance Saves You Money', excerpt: 'Discover how preventive plumbing maintenance can prevent costly repairs and extend the life of your fixtures.', content: null, author: 'VATTAMS Team', published_at: '2024-02-20', image_url: null },
-  { id: '6', title: 'Signs Your Refrigerator Needs Professional Repair', excerpt: 'Unusual noises, cooling issues, or leaks? Here are the signs that indicate your fridge needs expert attention.', content: null, author: 'VATTAMS Team', published_at: '2024-02-15', image_url: null },
+  { id: '1', title: '5 Signs Your AC Needs Immediate Servicing', excerpt: 'From weak cooling to strange noises, here are the warning signs every homeowner should watch for.', content: null, author: 'VATTAMS Team', published_at: new Date(Date.now() - 3 * 86400000).toISOString(), image_url: null },
+  { id: '2', title: 'How to Maintain Your Washing Machine Year-Round', excerpt: 'Simple maintenance tips that can extend the life of your washing machine and prevent costly repairs.', content: null, author: 'VATTAMS Team', published_at: new Date(Date.now() - 7 * 86400000).toISOString(), image_url: null },
+  { id: '3', title: 'Plumbing Basics Every Homeowner Should Know', excerpt: 'A quick guide to common plumbing issues and when to call a professional.', content: null, author: 'VATTAMS Team', published_at: new Date(Date.now() - 14 * 86400000).toISOString(), image_url: null },
+  { id: '4', title: 'Electrical Safety Tips for Tamil Nadu Homes', excerpt: 'Keep your family safe with these essential electrical safety practices.', content: null, author: 'VATTAMS Team', published_at: new Date(Date.now() - 21 * 86400000).toISOString(), image_url: null },
+  { id: '5', title: 'Why Pest Control Matters Before Monsoon', excerpt: 'Prepare your home for the rainy season with proactive pest management.', content: null, author: 'VATTAMS Team', published_at: new Date(Date.now() - 30 * 86400000).toISOString(), image_url: null },
+  { id: '6', title: 'Choosing the Right CCTV Setup for Your Home', excerpt: 'A breakdown of camera types, placement, and monitoring options for home security.', content: null, author: 'VATTAMS Team', published_at: new Date(Date.now() - 45 * 86400000).toISOString(), image_url: null },
 ]
 
 export function BlogPage() {
-  const [posts, setPosts] = useState<BlogPost[]>([])
+  const [posts, setPosts] = useState<BlogPost[]>(placeholderPosts)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     (async () => {
       try {
-        const { data, error } = await supabase
-          .from('blog_posts')
-          .select('id, title, excerpt, content, author, published_at, image_url')
-          .order('published_at', { ascending: false })
-        if (!error && data && data.length > 0) {
-          setPosts(data as BlogPost[])
-        } else {
-          setPosts(placeholderPosts)
-        }
-      } catch {
-        setPosts(placeholderPosts)
-      } finally {
-        setLoading(false)
-      }
+        const { data, error } = await supabase.from('blog_posts').select('*').order('published_at', { ascending: false }).limit(12)
+        if (!error && data && data.length > 0) setPosts(data as BlogPost[])
+      } catch { /* fall back to placeholders */ }
+      setLoading(false)
     })()
   }, [])
 
-  if (loading) return <LoadingScreen message="Loading blog posts..." />
-
   return (
-    <div className="py-12">
-      <div className="mx-auto max-w-7xl px-4">
-        <div className="text-center">
-          <h1 className="text-4xl font-bold text-gray-900">VATTAMS Blog</h1>
-          <p className="mx-auto mt-3 max-w-2xl text-lg text-gray-600">
-            Tips, guides, and insights on home maintenance from our expert technicians.
-          </p>
-        </div>
+    <div className="mx-auto max-w-7xl px-4 py-12">
+      <div className="text-center">
+        <h1 className="text-4xl font-bold text-gray-900">VATTAMS Blog</h1>
+        <p className="mt-3 text-lg text-gray-600">
+          Tips, guides, and insights for maintaining your home.
+        </p>
+      </div>
 
+      {loading ? (
+        <div className="mt-12 text-center text-gray-500">Loading posts...</div>
+      ) : (
         <div className="mt-12 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
           {posts.map((post) => (
-            <Card key={post.id} className="flex flex-col overflow-hidden transition-shadow hover:shadow-md">
-              <div className="h-48 bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center">
-                {post.image_url ? (
-                  <img src={post.image_url} alt={post.title} className="h-full w-full object-cover" />
-                ) : (
-                  <span className="text-4xl">📝</span>
-                )}
-              </div>
-              <CardContent className="flex flex-1 flex-col p-6">
-                <div className="flex items-center gap-3 text-xs text-gray-500">
-                  <span className="flex items-center gap-1">
-                    <Calendar className="h-3.5 w-3.5" />
-                    {formatDate(post.published_at)}
-                  </span>
-                  {post.author && (
-                    <span className="flex items-center gap-1">
-                      <User className="h-3.5 w-3.5" />
-                      {post.author}
-                    </span>
-                  )}
+            <Card key={post.id} className="flex flex-col transition-shadow hover:shadow-md">
+              <CardContent className="flex flex-1 flex-col pt-6">
+                <div className="mb-3 flex items-center gap-2 text-sm text-gray-500">
+                  <Calendar className="h-4 w-4" />
+                  {post.published_at ? formatDate(post.published_at) : 'Recent'}
                 </div>
-                <h3 className="mt-3 text-lg font-semibold text-gray-900">{post.title}</h3>
+                <h3 className="text-lg font-semibold text-gray-900">{post.title}</h3>
                 <p className="mt-2 flex-1 text-sm text-gray-600">{post.excerpt}</p>
-                <Link to="/register/customer" className="mt-4">
-                  <Button variant="outline" size="sm">
-                    Read More <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </Link>
+                <div className="mt-4 flex items-center justify-between">
+                  <span className="text-xs font-medium text-gray-500">{post.author || 'VATTAMS Team'}</span>
+                  <Link to="/contact" className="text-sm font-medium text-blue-600 hover:text-blue-700">
+                    Read more <ArrowRight className="inline h-3 w-3" />
+                  </Link>
+                </div>
               </CardContent>
             </Card>
           ))}
         </div>
+      )}
+
+      {posts.length === 0 && !loading && (
+        <div className="mt-12 text-center">
+          <Newspaper className="mx-auto h-12 w-12 text-gray-300" />
+          <p className="mt-4 text-gray-600">No blog posts yet. Check back soon!</p>
+        </div>
+      )}
+
+      <div className="mt-12 rounded-lg bg-blue-50 p-8 text-center">
+        <h2 className="text-2xl font-bold text-gray-900">Need a Professional?</h2>
+        <p className="mt-2 text-gray-600">Skip the DIY and book a verified technician today.</p>
+        <Link to="/register/customer" className="mt-4 inline-block"><Button>Book Now</Button></Link>
       </div>
     </div>
   )

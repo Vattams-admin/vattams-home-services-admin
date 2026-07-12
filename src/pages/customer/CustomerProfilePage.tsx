@@ -1,127 +1,105 @@
-import { useEffect, useState, type FormEvent } from 'react'
-import { User, Phone, MapPin, Save } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
 import { useToast } from '@/hooks/use-toast'
-import { LoadingScreen } from '@/components/LoadingScreen'
+import { sanitizeInput } from '@/lib/utils'
+import { createAuditLog } from '@/lib/notifications'
+import { TAMIL_NADU_DISTRICTS } from '@/lib/constants'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input, Select } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { sanitizeInput } from '@/lib/utils'
-import { TAMIL_NADU_DISTRICTS, SERVICE_CITIES } from '@/lib/constants'
-import { createAuditLog } from '@/lib/notifications'
+import { LoadingScreen } from '@/components/LoadingScreen'
+import { Mail, Phone, MapPin } from 'lucide-react'
+import type { FormEvent } from 'react'
 
 export function CustomerProfilePage() {
   const { profile, refreshProfile } = useAuth()
   const { toast } = useToast()
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-
-  const [form, setForm] = useState({
-    name: '', mobile: '', address: '', city: '', district: '', pincode: '',
-  })
+  const [loading, setLoading] = useState(false)
+  const [pageLoading, setPageLoading] = useState(true)
+  const [form, setForm] = useState({ name: '', mobile: '', address: '', city: '', district: '', pincode: '' })
 
   useEffect(() => {
-    if (!profile) return
-    setForm({
-      name: profile.name || '',
-      mobile: profile.mobile || '',
-      address: profile.address || '',
-      city: profile.city || '',
-      district: profile.district || '',
-      pincode: profile.pincode || '',
-    })
-    setLoading(false)
+    if (profile) {
+      setForm({
+        name: profile.name || '', mobile: profile.mobile || '',
+        address: profile.address || '', city: profile.city || '',
+        district: profile.district || '', pincode: profile.pincode || '',
+      })
+    }
+    setPageLoading(false)
   }, [profile])
 
-  if (loading) return <LoadingScreen />
-
-  const update = (k: string, v: string) => setForm({ ...form, [k]: v })
+  const handleChange = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }))
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (!profile) return
-    setSaving(true)
-    const { error } = await supabase
-      .from('profiles')
-      .update({
-        name: sanitizeInput(form.name),
-        mobile: form.mobile,
-        address: sanitizeInput(form.address),
-        city: form.city,
-        district: form.district,
-        pincode: form.pincode,
-      })
-      .eq('id', profile.id)
-    if (error) { toast(error.message, 'error'); setSaving(false); return }
+    if (!form.name || !form.mobile) { toast('Name and mobile are required', 'warning'); return }
+    setLoading(true)
+    const { error } = await supabase.from('profiles').update({
+      name: sanitizeInput(form.name), mobile: sanitizeInput(form.mobile),
+      address: sanitizeInput(form.address), city: sanitizeInput(form.city),
+      district: form.district, pincode: sanitizeInput(form.pincode),
+    }).eq('id', profile.id)
+    if (error) { toast('Failed to update profile', 'error'); setLoading(false); return }
+    await createAuditLog(profile.id, 'profile_updated', 'profile', profile.id, 'Customer updated profile')
     await refreshProfile()
-    await createAuditLog(profile.id, 'profile_updated', 'profile', profile.id, 'Customer updated their profile')
-    toast('Profile updated successfully!', 'success')
-    setSaving(false)
+    toast('Profile updated successfully', 'success')
+    setLoading(false)
   }
 
-  return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">My Profile</h1>
-        <p className="text-sm text-gray-600">Update your personal information</p>
-      </div>
+  if (pageLoading) return <LoadingScreen message="Loading profile..." />
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
-              <User className="h-6 w-6 text-blue-600" />
-            </div>
-            <div>
-              <CardTitle>{profile?.name}</CardTitle>
-              <p className="text-sm text-gray-500">{profile?.email}</p>
-            </div>
-          </div>
-        </CardHeader>
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold text-gray-900">My Profile</h1>
+
+      <Card className="max-w-md">
+        <CardHeader><CardTitle>Account Info</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center gap-2 text-sm text-gray-600"><Mail className="h-4 w-4" />{profile?.email}</div>
+          <div className="flex items-center gap-2 text-sm text-gray-600"><Phone className="h-4 w-4" />{profile?.mobile}</div>
+          {profile?.address && <div className="flex items-center gap-2 text-sm text-gray-600"><MapPin className="h-4 w-4" />{profile.address}, {profile.city}, {profile.district}</div>}
+        </CardContent>
+      </Card>
+
+      <Card className="max-w-md">
+        <CardHeader><CardTitle>Edit Profile</CardTitle></CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <Label htmlFor="name">Full Name</Label>
-                <Input id="name" required value={form.name} onChange={(e) => update('name', e.target.value)} placeholder="Your full name" />
-              </div>
-              <div>
-                <Label htmlFor="mobile">Mobile Number</Label>
-                <Input id="mobile" required value={form.mobile} onChange={(e) => update('mobile', e.target.value)} placeholder="9876543210" maxLength={10} pattern="[0-9]{10}" />
-              </div>
-            </div>
-
             <div>
-              <Label htmlFor="address">Address</Label>
-              <Input id="address" value={form.address} onChange={(e) => update('address', e.target.value)} placeholder="House no, Street, Landmark" />
+              <Label>Full Name *</Label>
+              <Input value={form.name} onChange={(e) => handleChange('name', e.target.value)} required />
             </div>
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div>
+              <Label>Mobile *</Label>
+              <Input value={form.mobile} onChange={(e) => handleChange('mobile', e.target.value)} maxLength={10} required />
+            </div>
+            <div>
+              <Label>Address</Label>
+              <Input value={form.address} onChange={(e) => handleChange('address', e.target.value)} placeholder="Street address" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="city">City</Label>
-                <Select id="city" value={form.city} onChange={(e) => update('city', e.target.value)}>
-                  <option value="">Select city</option>
-                  {SERVICE_CITIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                </Select>
+                <Label>City</Label>
+                <Input value={form.city} onChange={(e) => handleChange('city', e.target.value)} placeholder="City" />
               </div>
               <div>
-                <Label htmlFor="district">District</Label>
-                <Select id="district" value={form.district} onChange={(e) => update('district', e.target.value)}>
-                  <option value="">Select district</option>
+                <Label>District</Label>
+                <Select value={form.district} onChange={(e) => handleChange('district', e.target.value)}>
+                  <option value="">Select District</option>
                   {TAMIL_NADU_DISTRICTS.map((d) => <option key={d} value={d}>{d}</option>)}
                 </Select>
               </div>
-              <div>
-                <Label htmlFor="pincode">Pincode</Label>
-                <Input id="pincode" value={form.pincode} onChange={(e) => update('pincode', e.target.value)} placeholder="600001" maxLength={6} pattern="[0-9]{6}" />
-              </div>
             </div>
-
-            <Button type="submit" disabled={saving} className="w-full sm:w-auto">
-              <Save className="mr-2 h-4 w-4" />
-              {saving ? 'Saving...' : 'Save Changes'}
+            <div>
+              <Label>Pincode</Label>
+              <Input value={form.pincode} onChange={(e) => handleChange('pincode', e.target.value)} maxLength={6} placeholder="6-digit pincode" />
+            </div>
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? 'Saving...' : 'Save Changes'}
             </Button>
           </form>
         </CardContent>

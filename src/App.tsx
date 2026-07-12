@@ -65,9 +65,7 @@ export default function App() {
               <Route path="/register/:role" element={<RegisterPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             </Route>
-
             <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['customer','technician','admin','super_admin']}><RoleDashboardRedirect /></ProtectedRoute>} />
-
             <Route path="/customer" element={<ProtectedRoute allowedRoles={['customer']}><DashboardLayout /></ProtectedRoute>}>
               <Route path="dashboard" element={<CustomerDashboardPage />} />
               <Route path="bookings" element={<CustomerBookingsPage />} />
@@ -78,7 +76,6 @@ export default function App() {
               <Route path="profile" element={<CustomerProfilePage />} />
               <Route path="review/:bookingId" element={<CustomerReviewPage />} />
             </Route>
-
             <Route path="/technician" element={<ProtectedRoute allowedRoles={['technician']}><DashboardLayout /></ProtectedRoute>}>
               <Route path="dashboard" element={<TechnicianDashboardPage />} />
               <Route path="jobs" element={<TechnicianJobsPage />} />
@@ -88,7 +85,6 @@ export default function App() {
               <Route path="notifications" element={<TechnicianNotificationsPage />} />
               <Route path="profile" element={<TechnicianProfilePage />} />
             </Route>
-
             <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin','super_admin']}><DashboardLayout /></ProtectedRoute>}>
               <Route path="dashboard" element={<AdminDashboardPage />} />
               <Route path="verification" element={<AdminVerificationPage />} />
@@ -104,7 +100,6 @@ export default function App() {
               <Route path="notifications" element={<AdminNotificationsPage />} />
               <Route path="settings" element={<AdminSettingsPage />} />
             </Route>
-
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </Suspense>

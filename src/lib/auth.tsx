@@ -4,9 +4,7 @@ import type { Profile, UserRole } from '@/lib/supabase'
 import type { Session } from '@supabase/supabase-js'
 
 type AuthContextType = {
-  session: Session | null
-  profile: Profile | null
-  loading: boolean
+  session: Session | null; profile: Profile | null; loading: boolean
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   signUp: (email: string, password: string, name: string, mobile: string, role: UserRole, extra?: Record<string, unknown>) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
@@ -32,19 +30,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       if (mounted) setLoading(false)
     })()
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
-      if (session) {
-        (async () => {
-          const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle()
-          setProfile(data as Profile)
-        })()
-      } else {
-        setProfile(null)
-      }
+      if (session) { (async () => { const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle(); setProfile(data as Profile) })() }
+      else { setProfile(null) }
     })
-
     return () => { mounted = false; subscription.unsubscribe() }
   }, [])
 
@@ -70,17 +60,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: null }
   }
 
-  const signOut = async () => {
-    await supabase.auth.signOut()
-    setProfile(null)
-    setSession(null)
-  }
+  const signOut = async () => { await supabase.auth.signOut(); setProfile(null); setSession(null) }
 
-  return (
-    <AuthContext.Provider value={{ session, profile, loading, signIn, signUp, signOut, refreshProfile }}>
-      {children}
-    </AuthContext.Provider>
-  )
+  return <AuthContext.Provider value={{ session, profile, loading, signIn, signUp, signOut, refreshProfile }}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() { return useContext(AuthContext) }

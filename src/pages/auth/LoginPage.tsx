@@ -1,10 +1,11 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Mail, Lock, LogIn } from 'lucide-react'
+import { LogIn } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
 import { useToast } from '@/hooks/use-toast'
 
@@ -12,92 +13,64 @@ export function LoginPage() {
   const { signIn } = useAuth()
   const { toast } = useToast()
   const navigate = useNavigate()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState({ email: '', password: '' })
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    const { error } = await signIn(form.email, form.password)
+    const { error } = await signIn(email.trim(), password)
     if (error) {
-      toast(error, 'error')
       setLoading(false)
+      toast(error, 'error')
       return
     }
-    toast('Login successful! Redirecting...', 'success')
-    // Determine redirect based on profile role
-    setTimeout(() => {
-      // The AuthProvider will load the profile; redirect to dashboard
-      // which will handle role-based routing
-      navigate('/dashboard')
-    }, 500)
+    toast('Welcome back!', 'success')
+    // Redirect based on role
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        const { data } = await supabase.from('profiles').select('role').eq('id', session.user.id).maybeSingle()
+        const role = (data as { role?: string } | null)?.role
+        const path = role === 'admin' || role === 'super_admin' ? '/admin/dashboard' : role === 'technician' ? '/technician/dashboard' : '/customer/dashboard'
+        navigate(path, { replace: true })
+        return
+      }
+    } catch { /* fall through */ }
+    setLoading(false)
+    navigate('/dashboard', { replace: true })
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center px-4 py-12">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-50">
-            <LogIn className="h-6 w-6 text-blue-600" />
-          </div>
-          <CardTitle className="mt-2">Welcome Back</CardTitle>
-          <p className="text-sm text-gray-600">Sign in to your VATTAMS account</p>
+    <div className="mx-auto max-w-md px-4 py-12">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><LogIn className="h-5 w-5" /> Login to VATTAMS</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <Label htmlFor="email">Email</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                <Input
-                  id="email"
-                  type="email"
-                  required
-                  className="pl-10"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  placeholder="you@example.com"
-                />
-              </div>
+              <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
             </div>
             <div>
               <Label htmlFor="password">Password</Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                <Input
-                  id="password"
-                  type="password"
-                  required
-                  className="pl-10"
-                  value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  placeholder="••••••••"
-                />
-              </div>
+              <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password" />
             </div>
             <Button type="submit" disabled={loading} className="w-full">
               {loading ? 'Signing in...' : 'Sign In'}
             </Button>
           </form>
 
-          <div className="mt-6 space-y-2 text-center text-sm">
-            <p className="text-gray-600">
+          <div className="mt-4 space-y-2 text-center text-sm">
+            <Link to="/forgot-password" className="block text-blue-600 hover:text-blue-700">Forgot password?</Link>
+            <div className="text-gray-600">
               Don't have an account?{' '}
-              <Link to="/register/customer" className="font-medium text-blue-600 hover:text-blue-700">
-                Register as Customer
-              </Link>
-            </p>
-            <p className="text-gray-600">
-              Are you a technician?{' '}
-              <Link to="/register/technician" className="font-medium text-blue-600 hover:text-blue-700">
-                Register as Technician
-              </Link>
-            </p>
-            <p>
-              <Link to="/forgot-password" className="font-medium text-blue-600 hover:text-blue-700">
-                Forgot your password?
-              </Link>
-            </p>
+              <Link to="/register/customer" className="font-medium text-blue-600 hover:text-blue-700">Register as Customer</Link>
+              {' · '}
+              <Link to="/register/technician" className="font-medium text-blue-600 hover:text-blue-700">Technician</Link>
+            </div>
           </div>
         </CardContent>
       </Card>

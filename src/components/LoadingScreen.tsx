@@ -1,4 +1,4 @@
-import { Loader as Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 export function LoadingScreen({ message = 'Loading...' }: { message?: string }) {

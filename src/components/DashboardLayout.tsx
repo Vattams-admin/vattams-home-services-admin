@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Calendar, Users, Wrench, MapPin, CreditCard, BarChart3, Settings, Bell, Tag, History, ClipboardList, Chrome as Home, Wallet, Star, User, Menu, X, LogOut, Briefcase, FileText, BadgeCheck } from 'lucide-react'
+import {
+  LayoutDashboard, Calendar, Users, Wrench, MapPin, CreditCard,
+  BarChart3, Settings, Bell, Tag, History, ClipboardList, Home,
+  Wallet, User, Menu, X, LogOut, FileText, BadgeCheck,
+} from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { Logo } from '@/components/Logo'

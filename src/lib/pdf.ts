@@ -29,7 +29,7 @@ export async function generateInvoicePDF(
   if (booking?.city) doc.text(`${booking.city}, ${booking.district}`, 14, 73)
 
   doc.setFontSize(10); doc.setTextColor(0); doc.text('Service Details:', 120, 48)
-  doc.setFontSize(12); doc.text(booking?.service_name || 'Service', 120, 55)
+  doc.setFontSize(12); doc.text(booking?.service_name || invoice.service_name || 'Service', 120, 55)
   doc.setFontSize(10); doc.setTextColor(80)
   doc.text(`Booking #: ${booking?.booking_number || ''}`, 120, 61)
   doc.text(`Date: ${booking ? formatDate(booking.scheduled_date) : ''}`, 120, 67)
@@ -65,10 +65,8 @@ export function generateReportPDF(title: string, headers: string[], rows: (strin
   const doc = new jsPDF()
   doc.setFontSize(18); doc.setTextColor(37, 99, 235); doc.text(title, 14, 20)
   doc.setFontSize(10); doc.setTextColor(100); doc.text(`Generated: ${formatDate(new Date())}`, 14, 28)
-
   if (summary && summary.length > 0) {
-    let y = 38
-    summary.forEach(s => { doc.text(`${s.label}: ${s.value}`, 14, y); y += 6 })
+    let y = 38; summary.forEach(s => { doc.text(`${s.label}: ${s.value}`, 14, y); y += 6 })
     autoTable(doc, { startY: y + 4, head: [headers], body: rows, theme: 'striped', headStyles: { fillColor: [37, 99, 235] } })
   } else {
     autoTable(doc, { startY: 34, head: [headers], body: rows, theme: 'striped', headStyles: { fillColor: [37, 99, 235] } })

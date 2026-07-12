@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { Link, Outlet } from 'react-router-dom'
-import { Phone, MessageCircle, Mail, CirclePlay as PlayCircle, Menu, X } from 'lucide-react'
+import { Phone, MessageCircle, PlayCircle, Menu, X } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { Logo } from '@/components/Logo'
-import { PRIMARY_PHONE, SUPPORT_PHONE, WHATSAPP_NUMBER, YOUTUBE_URL, YOUTUBE_CHANNEL, telLink, whatsappSupportLink } from '@/lib/constants'
+import { PRIMARY_PHONE, WHATSAPP_NUMBER, YOUTUBE_URL, YOUTUBE_CHANNEL, telLink, whatsappSupportLink } from '@/lib/constants'
 
 export function PublicLayout() {
   const { profile, signOut } = useAuth()
@@ -14,8 +14,7 @@ export function PublicLayout() {
     { to: '/blog', label: 'Blog' }, { to: '/contact', label: 'Contact' },
   ]
   const dashboardPath = profile
-    ? profile.role === 'admin' || profile.role === 'super_admin' ? '/admin/dashboard'
-      : profile.role === 'technician' ? '/technician/dashboard' : '/customer/dashboard'
+    ? profile.role === 'admin' || profile.role === 'super_admin' ? '/admin/dashboard' : profile.role === 'technician' ? '/technician/dashboard' : '/customer/dashboard'
     : null
 
   return (
@@ -23,9 +22,7 @@ export function PublicLayout() {
       <header className="sticky top-0 z-40 border-b border-gray-200 bg-white/95 backdrop-blur">
         <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
           <Link to="/" className="flex items-center gap-2"><Logo className="h-8 w-8" /><span className="text-xl font-bold text-gray-900">VATTAMS</span></Link>
-          <div className="hidden items-center gap-6 md:flex">
-            {navLinks.map((l) => <Link key={l.to} to={l.to} className="text-sm font-medium text-gray-600 hover:text-blue-600">{l.label}</Link>)}
-          </div>
+          <div className="hidden items-center gap-6 md:flex">{navLinks.map((l) => <Link key={l.to} to={l.to} className="text-sm font-medium text-gray-600 hover:text-blue-600">{l.label}</Link>)}</div>
           <div className="hidden items-center gap-3 md:flex">
             {profile ? (<><Link to={dashboardPath!} className="text-sm font-medium text-blue-600 hover:text-blue-700">Dashboard</Link><button onClick={signOut} className="text-sm text-gray-600 hover:text-gray-900">Logout</button></>)
               : (<><Link to="/login" className="text-sm font-medium text-gray-600 hover:text-blue-600">Login</Link><Link to="/register/customer" className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Get Started</Link></>)}
