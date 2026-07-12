@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Eye, MapPin, ArrowRight, CheckCircle } from 'lucide-react'
+import { Eye, MapPin, ArrowRight, CircleCheck as CheckCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Booking, Profile, BookingStatus } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'

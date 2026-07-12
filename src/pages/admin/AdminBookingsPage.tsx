@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Modal } from '@/components/ui/modal'
 import { LoadingScreen } from '@/components/LoadingScreen'
-import { Eye, UserPlus, XCircle } from 'lucide-react'
+import { Eye, UserPlus, Circle as XCircle } from 'lucide-react'
 
 type Tab = 'all' | 'created' | 'assigned' | 'active' | 'completed' | 'cancelled'
 

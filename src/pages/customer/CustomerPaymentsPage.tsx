@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Download, Eye, CreditCard, CheckCircle, Clock } from 'lucide-react'
+import { Download, Eye, CreditCard, CircleCheck as CheckCircle, Clock } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Invoice, Booking, Profile, Settings } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'

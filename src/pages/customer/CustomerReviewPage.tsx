@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Star, ArrowLeft, CheckCircle } from 'lucide-react'
+import { Star, ArrowLeft, CircleCheck as CheckCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Booking, Review } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Wrench, CheckCircle, TrendingUp, Power, ArrowRight, BadgeCheck } from 'lucide-react'
+import { Wrench, CircleCheck as CheckCircle, TrendingUp, Power, ArrowRight, BadgeCheck } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Booking } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'

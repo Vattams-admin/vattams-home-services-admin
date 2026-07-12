@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Modal } from '@/components/ui/modal'
 import { LoadingScreen } from '@/components/LoadingScreen'
-import { IndianRupee, CheckCircle, Clock, Calendar, Eye } from 'lucide-react'
+import { IndianRupee, CircleCheck as CheckCircle, Clock, Calendar, Eye } from 'lucide-react'
 
 export function AdminPaymentsPage() {
   const [loading, setLoading] = useState(true)

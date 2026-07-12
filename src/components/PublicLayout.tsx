@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, Outlet } from 'react-router-dom'
-import { Phone, MessageCircle, Mail, PlayCircle, Menu, X } from 'lucide-react'
+import { Phone, MessageCircle, Mail, CirclePlay as PlayCircle, Menu, X } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { Logo } from '@/components/Logo'
 import { PRIMARY_PHONE, SUPPORT_PHONE, WHATSAPP_NUMBER, YOUTUBE_URL, YOUTUBE_CHANNEL, telLink, whatsappSupportLink } from '@/lib/constants'

@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { LoadingScreen } from '@/components/LoadingScreen'
-import { CheckCheck, Bell, Info, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
+import { CheckCheck, Bell, Info, CircleCheck as CheckCircle, Circle as XCircle, CircleAlert as AlertCircle } from 'lucide-react'
 
 const icons: Record<string, typeof Info> = {
   info: Info, success: CheckCircle, error: XCircle, warning: AlertCircle,

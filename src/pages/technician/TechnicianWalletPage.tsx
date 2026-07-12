@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Wallet, BadgeCheck, TrendingUp, Clock, Briefcase, CheckCircle, ArrowRightCircle } from 'lucide-react'
+import { Wallet, BadgeCheck, TrendingUp, Clock, Briefcase, CircleCheck as CheckCircle, CircleArrowRight as ArrowRightCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { TechnicianWallet } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'

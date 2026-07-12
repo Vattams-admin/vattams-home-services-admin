@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Modal } from '@/components/ui/modal'
 import { LoadingScreen } from '@/components/LoadingScreen'
-import { Search, Eye, Ban, CheckCircle } from 'lucide-react'
+import { Search, Eye, Ban, CircleCheck as CheckCircle } from 'lucide-react'
 
 export function AdminCustomersPage() {
   const { profile } = useAuth()

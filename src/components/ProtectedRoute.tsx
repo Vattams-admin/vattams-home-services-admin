@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
-import { Clock, XCircle, Ban, CreditCard, FileSearch } from 'lucide-react'
+import { Clock, Circle as XCircle, Ban, CreditCard, FileSearch } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { VERIFICATION_STATUS_LABELS } from '@/lib/utils'

@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { generateReportPDF, exportToCSV } from '@/lib/pdf'
-import { Calendar, CheckCircle, XCircle, IndianRupee, TrendingUp, FileText, Download } from 'lucide-react'
+import { Calendar, CircleCheck as CheckCircle, Circle as XCircle, IndianRupee, TrendingUp, FileText, Download } from 'lucide-react'
 
 export function AdminReportsPage() {
   const [loading, setLoading] = useState(true)

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Phone, MessageCircle, PlayCircle, MapPin, Mail, Send } from 'lucide-react'
+import { Phone, MessageCircle, CirclePlay as PlayCircle, MapPin, Mail, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input, Textarea } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
