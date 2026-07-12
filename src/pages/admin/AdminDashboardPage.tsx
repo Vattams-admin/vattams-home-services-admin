@@ -1,155 +1,144 @@
 import { useEffect, useState } from 'react'
-import { Users, Wrench, Clock, Activity, TrendingUp, CircleCheck as CheckCircle, Circle as XCircle, Eye } from 'lucide-react'
+import { Users, Wrench, Clock, Calendar, TrendingUp, CheckCircle, XCircle, Eye } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import type { Profile, Booking, BookingStatus } from '@/lib/supabase'
+import type { Profile, Booking } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
 import { useToast } from '@/hooks/use-toast'
 import { createNotification, createAuditLog } from '@/lib/notifications'
-import { cn, formatDate, formatCurrency, BOOKING_STATUS_COLORS, VERIFICATION_STATUS_COLORS, VERIFICATION_STATUS_LABELS } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { Input, Textarea } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Modal } from '@/components/ui/modal'
 import { LoadingScreen } from '@/components/LoadingScreen'
-
-type Stats = { customers: number; technicians: number; pending: number; active: number; revenue: number }
-type BookingWithNames = Booking & { customer: Profile | null; technician: Profile | null }
+import { Textarea } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { formatCurrency, formatDate, BOOKING_STATUS_COLORS, VERIFICATION_STATUS_COLORS, VERIFICATION_STATUS_LABELS } from '@/lib/utils'
 
 export function AdminDashboardPage() {
   const { profile } = useAuth()
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
-  const [stats, setStats] = useState<Stats>({ customers: 0, technicians: 0, pending: 0, active: 0, revenue: 0 })
+  const [customers, setCustomers] = useState<Profile[]>([])
+  const [technicians, setTechnicians] = useState<Profile[]>([])
   const [pendingTechs, setPendingTechs] = useState<Profile[]>([])
-  const [recentBookings, setRecentBookings] = useState<BookingWithNames[]>([])
+  const [bookings, setBookings] = useState<Booking[]>([])
+  const [revenue, setRevenue] = useState(0)
   const [viewTech, setViewTech] = useState<Profile | null>(null)
   const [rejectTech, setRejectTech] = useState<Profile | null>(null)
   const [rejectReason, setRejectReason] = useState('')
-  const [actioning, setActioning] = useState(false)
+  const [actionLoading, setActionLoading] = useState(false)
 
   useEffect(() => {
     let mounted = true;
     (async () => {
-      const { count: customers } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'customer')
-      const { count: technicians } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'technician')
-      const { count: pending } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'technician').in('verification_status', ['pending_registration', 'fee_pending', 'under_review'])
-      const { count: active } = await supabase.from('bookings').select('*', { count: 'exact', head: true }).not('status', 'eq', 'completed').not('status', 'eq', 'cancelled')
-      const { data: revData } = await supabase.from('invoices').select('amount').eq('status', 'paid')
-      const { data: pendingData } = await supabase.from('profiles').select('*').eq('role', 'technician').in('verification_status', ['pending_registration', 'fee_pending', 'under_review']).order('created_at', { ascending: false })
-      const { data: bookingsData } = await supabase.from('bookings').select('*, customer:customer_id(*), technician:technician_id(*)').order('created_at', { ascending: false }).limit(5)
-      if (!mounted) return
-      setStats({ customers: customers || 0, technicians: technicians || 0, pending: pending || 0, active: active || 0, revenue: (revData || []).reduce((s, r) => s + r.amount, 0) })
-      setPendingTechs((pendingData || []) as Profile[])
-      setRecentBookings((bookingsData || []) as BookingWithNames[])
-      setLoading(false)
+      const { data: custs } = await supabase.from('profiles').select('*').eq('role', 'customer')
+      const { data: techs } = await supabase.from('profiles').select('*').eq('role', 'technician')
+      const { data: bks } = await supabase.from('bookings').select('*').order('created_at', { ascending: false }).limit(5)
+      const { data: invoices } = await supabase.from('invoices').select('amount').eq('status', 'paid')
+      const totalRev = (invoices || []).reduce((s, i: { amount: number }) => s + i.amount, 0)
+      if (mounted) {
+        setCustomers((custs as Profile[]) || [])
+        setTechnicians((techs as Profile[]) || [])
+        setPendingTechs(((techs as Profile[]) || []).filter((t) => t.verification_status === 'under_review' || t.verification_status === 'fee_pending'))
+        setBookings((bks as Booking[]) || [])
+        setRevenue(totalRev)
+        setLoading(false)
+      }
     })()
     return () => { mounted = false }
   }, [])
 
-  const handleApproveTech = async (tech: Profile) => {
-    setActioning(true)
-    const { error } = await supabase.from('profiles').update({ verification_status: 'approved', status: 'active', rejection_reason: null }).eq('id', tech.id)
-    setActioning(false)
+  const approveTech = async (tech: Profile) => {
+    setActionLoading(true)
+    const { error } = await supabase.from('profiles').update({ verification_status: 'approved', status: 'active' }).eq('id', tech.id)
+    setActionLoading(false)
     if (error) { toast('Failed to approve technician', 'error'); return }
-    await createNotification(tech.id, 'Verification Approved', 'Your account has been approved. You can now start accepting jobs.', 'success')
-    if (profile) await createAuditLog(profile.id, 'approve_technician', 'profile', tech.id, `Approved technician ${tech.name}`)
-    toast('Technician approved successfully', 'success')
+    await createNotification(tech.id, 'Verification Approved', 'Your account has been approved. You can now start receiving jobs.', 'success')
+    if (profile) await createAuditLog(profile.id, 'technician_approve', 'profile', tech.id, `Approved ${tech.name}`)
     setPendingTechs((prev) => prev.filter((t) => t.id !== tech.id))
-    setViewTech(null)
+    toast('Technician approved successfully', 'success')
   }
 
-  const handleRejectTech = async () => {
+  const confirmReject = async () => {
     if (!rejectTech || !rejectReason.trim()) return
-    setActioning(true)
-    const { error } = await supabase.from('profiles').update({ verification_status: 'rejected', status: 'rejected', rejection_reason: rejectReason.trim() }).eq('id', rejectTech.id)
-    setActioning(false)
+    setActionLoading(true)
+    const { error } = await supabase.from('profiles').update({ verification_status: 'rejected', status: 'rejected', rejection_reason: rejectReason }).eq('id', rejectTech.id)
+    setActionLoading(false)
     if (error) { toast('Failed to reject technician', 'error'); return }
-    await createNotification(rejectTech.id, 'Verification Rejected', `Your application was rejected. Reason: ${rejectReason.trim()}`, 'error')
-    if (profile) await createAuditLog(profile.id, 'reject_technician', 'profile', rejectTech.id, `Rejected technician ${rejectTech.name}: ${rejectReason.trim()}`)
-    toast('Technician rejected', 'success')
+    await createNotification(rejectTech.id, 'Verification Rejected', `Your application was rejected. Reason: ${rejectReason}`, 'error')
+    if (profile) await createAuditLog(profile.id, 'technician_reject', 'profile', rejectTech.id, `Rejected ${rejectTech.name}: ${rejectReason}`)
     setPendingTechs((prev) => prev.filter((t) => t.id !== rejectTech.id))
-    setRejectTech(null)
-    setRejectReason('')
+    setRejectTech(null); setRejectReason('')
+    toast('Technician rejected', 'success')
   }
 
-  if (loading) return <LoadingScreen message="Loading admin dashboard..." />
+  if (loading) return <LoadingScreen message="Loading dashboard..." />
 
-  const statCards = [
-    { label: 'Total Customers', value: stats.customers, icon: Users, color: 'text-blue-600 bg-blue-100' },
-    { label: 'Total Technicians', value: stats.technicians, icon: Wrench, color: 'text-purple-600 bg-purple-100' },
-    { label: 'Pending Verification', value: stats.pending, icon: Clock, color: 'text-amber-600 bg-amber-100' },
-    { label: 'Active Bookings', value: stats.active, icon: Activity, color: 'text-green-600 bg-green-100' },
-    { label: 'Total Revenue', value: formatCurrency(stats.revenue), icon: TrendingUp, color: 'text-indigo-600 bg-indigo-100' },
+  const activeBookings = bookings.filter((b) => !['completed', 'cancelled'].includes(b.status)).length
+  const stats = [
+    { label: 'Total Customers', value: customers.length, icon: Users, color: 'text-blue-600 bg-blue-50' },
+    { label: 'Total Technicians', value: technicians.length, icon: Wrench, color: 'text-purple-600 bg-purple-50' },
+    { label: 'Pending Verification', value: pendingTechs.length, icon: Clock, color: 'text-amber-600 bg-amber-50' },
+    { label: 'Active Bookings', value: activeBookings, icon: Calendar, color: 'text-cyan-600 bg-cyan-50' },
+    { label: 'Total Revenue', value: formatCurrency(revenue), icon: TrendingUp, color: 'text-green-600 bg-green-50' },
   ]
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
-        <p className="text-sm text-gray-500">Platform overview and pending approvals</p>
-      </div>
+    <div className="mx-auto max-w-6xl px-4 py-8">
+      <h1 className="mb-6 text-2xl font-bold text-gray-900">Admin Dashboard</h1>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        {statCards.map((s) => (
+      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        {stats.map((s) => { const Icon = s.icon; return (
           <Card key={s.label}>
-            <CardContent className="flex items-center gap-4 py-4">
-              <div className={cn('flex h-12 w-12 items-center justify-center rounded-lg', s.color)}><s.icon className="h-6 w-6" /></div>
-              <div><p className="text-2xl font-bold text-gray-900">{s.value}</p><p className="text-sm text-gray-500">{s.label}</p></div>
+            <CardContent className="flex items-center gap-3 p-4">
+              <div className={`rounded-lg p-2.5 ${s.color}`}><Icon className="h-5 w-5" /></div>
+              <div><p className="text-xs text-gray-600">{s.label}</p><p className="text-lg font-bold text-gray-900">{s.value}</p></div>
             </CardContent>
           </Card>
-        ))}
+        )})}
       </div>
 
-      <Card>
-        <CardHeader><CardTitle>Pending Technician Requests ({pendingTechs.length})</CardTitle></CardHeader>
-        <CardContent>
-          {pendingTechs.length === 0 ? (
-            <p className="py-8 text-center text-gray-500">No pending technician requests.</p>
-          ) : (
+      {pendingTechs.length > 0 && (
+        <Card className="mb-6">
+          <CardHeader><CardTitle>Pending Technician Requests ({pendingTechs.length})</CardTitle></CardHeader>
+          <CardContent>
             <div className="space-y-3">
-              {pendingTechs.map((tech) => (
-                <div key={tech.id} className="flex flex-col gap-3 rounded-lg border border-gray-200 p-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-medium text-gray-900">{tech.name}</p>
-                      <Badge color={VERIFICATION_STATUS_COLORS[tech.verification_status || ''] || 'bg-gray-100 text-gray-700'}>
-                        {VERIFICATION_STATUS_LABELS[tech.verification_status || ''] || tech.verification_status}
-                      </Badge>
-                    </div>
-                    <p className="mt-1 text-sm text-gray-500">{tech.email} • {tech.mobile}</p>
+              {pendingTechs.map((t) => (
+                <div key={t.id} className="flex flex-col gap-3 rounded-lg border border-gray-100 p-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="font-medium text-gray-900">{t.name}</p>
+                    <p className="text-sm text-gray-500">{t.email} • {t.mobile}</p>
+                    <Badge color={VERIFICATION_STATUS_COLORS[t.verification_status || 'pending_registration']}>{VERIFICATION_STATUS_LABELS[t.verification_status || 'pending_registration']}</Badge>
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" variant="outline" onClick={() => setViewTech(tech)}><Eye className="mr-1 h-4 w-4" />View</Button>
-                    <Button size="sm" onClick={() => handleApproveTech(tech)} disabled={actioning}><CheckCircle className="mr-1 h-4 w-4" />Approve</Button>
-                    <Button size="sm" variant="danger" onClick={() => setRejectTech(tech)}><XCircle className="mr-1 h-4 w-4" />Reject</Button>
+                    <Button size="sm" variant="outline" onClick={() => setViewTech(t)}><Eye className="mr-1 h-3.5 w-3.5" /> View</Button>
+                    <Button size="sm" onClick={() => approveTech(t)} disabled={actionLoading}><CheckCircle className="mr-1 h-3.5 w-3.5" /> Approve</Button>
+                    <Button size="sm" variant="danger" onClick={() => setRejectTech(t)}><XCircle className="mr-1 h-3.5 w-3.5" /> Reject</Button>
                   </div>
                 </div>
               ))}
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader><CardTitle>Recent Bookings</CardTitle></CardHeader>
         <CardContent>
-          {recentBookings.length === 0 ? (
+          {bookings.length === 0 ? (
             <p className="py-8 text-center text-gray-500">No bookings yet.</p>
           ) : (
             <div className="space-y-3">
-              {recentBookings.map((b) => (
-                <div key={b.id} className="flex items-center justify-between rounded-lg border border-gray-200 p-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-xs text-gray-400">#{b.booking_number}</span>
-                      <p className="font-medium text-gray-900">{b.service_name}</p>
-                      <Badge color={BOOKING_STATUS_COLORS[b.status]}>{b.status.replace(/_/g, ' ')}</Badge>
-                    </div>
-                    <p className="mt-1 text-sm text-gray-500">{b.customer?.name || 'Unknown'} • {b.technician?.name || 'Unassigned'} • {formatDate(b.scheduled_date)}</p>
+              {bookings.map((b) => (
+                <div key={b.id} className="flex items-center justify-between rounded-lg border border-gray-100 p-3">
+                  <div>
+                    <p className="font-medium text-gray-900">{b.service_name}</p>
+                    <p className="text-sm text-gray-500">#{b.booking_number} • {formatDate(b.scheduled_date)}</p>
                   </div>
-                  <p className="ml-4 font-semibold text-gray-900">{formatCurrency(b.amount)}</p>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-medium text-gray-900">{formatCurrency(b.amount)}</span>
+                    <Badge color={BOOKING_STATUS_COLORS[b.status]}>{b.status.replace(/_/g, ' ')}</Badge>
+                  </div>
                 </div>
               ))}
             </div>
@@ -159,37 +148,31 @@ export function AdminDashboardPage() {
 
       <Modal open={!!viewTech} onClose={() => setViewTech(null)} title="Technician Profile">
         {viewTech && (
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div><p className="text-gray-500">Name</p><p className="font-medium">{viewTech.name}</p></div>
-            <div><p className="text-gray-500">Email</p><p className="font-medium">{viewTech.email}</p></div>
-            <div><p className="text-gray-500">Mobile</p><p className="font-medium">{viewTech.mobile}</p></div>
-            <div><p className="text-gray-500">City</p><p className="font-medium">{viewTech.city || '-'}</p></div>
-            <div><p className="text-gray-500">Experience</p><p className="font-medium">{viewTech.experience || '-'}</p></div>
-            <div><p className="text-gray-500">Status</p><Badge color={VERIFICATION_STATUS_COLORS[viewTech.verification_status || '']}>{VERIFICATION_STATUS_LABELS[viewTech.verification_status || '']}</Badge></div>
-            <div className="col-span-2"><p className="text-gray-500">Skills</p><div className="flex flex-wrap gap-1 mt-1">{(viewTech.skills || []).map((s) => <Badge key={s}>{s}</Badge>)}</div></div>
-            {viewTech.bio && <div className="col-span-2"><p className="text-gray-500">Bio</p><p className="font-medium">{viewTech.bio}</p></div>}
-            <div className="col-span-2 flex justify-end gap-2 border-t pt-4">
-              <Button variant="danger" onClick={() => { setRejectTech(viewTech); setViewTech(null) }}><XCircle className="mr-1 h-4 w-4" />Reject</Button>
-              <Button onClick={() => handleApproveTech(viewTech)} disabled={actioning}><CheckCircle className="mr-1 h-4 w-4" />Approve</Button>
-            </div>
+          <div className="space-y-2">
+            <p><span className="font-medium">Name:</span> {viewTech.name}</p>
+            <p><span className="font-medium">Email:</span> {viewTech.email}</p>
+            <p><span className="font-medium">Mobile:</span> {viewTech.mobile}</p>
+            <p><span className="font-medium">Experience:</span> {viewTech.experience || 'N/A'}</p>
+            <p><span className="font-medium">Skills:</span> {(viewTech.skills || []).join(', ') || 'N/A'}</p>
+            <p><span className="font-medium">City:</span> {viewTech.city || 'N/A'}</p>
+            <p><span className="font-medium">District:</span> {viewTech.district || 'N/A'}</p>
+            <p><span className="font-medium">Bio:</span> {viewTech.bio || 'N/A'}</p>
           </div>
         )}
       </Modal>
 
       <Modal open={!!rejectTech} onClose={() => { setRejectTech(null); setRejectReason('') }} title="Reject Technician">
-        {rejectTech && (
-          <div className="space-y-4">
-            <p className="text-sm text-gray-600">Provide a reason for rejecting <strong>{rejectTech.name}</strong>:</p>
-            <div>
-              <Label htmlFor="reason">Rejection Reason</Label>
-              <Textarea id="reason" value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} rows={3} placeholder="Enter rejection reason..." />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => { setRejectTech(null); setRejectReason('') }}>Cancel</Button>
-              <Button variant="danger" onClick={handleRejectTech} disabled={actioning || !rejectReason.trim()}>Reject Technician</Button>
-            </div>
+        <div className="space-y-4">
+          <p>Provide a reason for rejecting <span className="font-medium">{rejectTech?.name}</span></p>
+          <div>
+            <Label htmlFor="reason">Rejection Reason</Label>
+            <Textarea id="reason" value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} rows={3} placeholder="Enter reason..." />
           </div>
-        )}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => { setRejectTech(null); setRejectReason('') }}>Cancel</Button>
+            <Button variant="danger" onClick={confirmReject} disabled={actionLoading || !rejectReason.trim()}>Reject</Button>
+          </div>
+        </div>
       </Modal>
     </div>
   )

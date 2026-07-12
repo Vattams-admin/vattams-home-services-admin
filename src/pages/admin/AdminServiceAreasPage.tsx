@@ -1,19 +1,18 @@
 import { useEffect, useState } from 'react'
-import { Plus, Trash2, Search, MapPin } from 'lucide-react'
+import { MapPin, Plus, Trash2, Power, Search } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { ServiceArea } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
 import { useToast } from '@/hooks/use-toast'
 import { createAuditLog } from '@/lib/notifications'
-import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input, Select } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Modal } from '@/components/ui/modal'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { TAMIL_NADU_DISTRICTS } from '@/lib/constants'
+import type { FormEvent } from 'react'
 
 export function AdminServiceAreasPage() {
   const { profile } = useAuth()
@@ -21,120 +20,122 @@ export function AdminServiceAreasPage() {
   const [loading, setLoading] = useState(true)
   const [areas, setAreas] = useState<ServiceArea[]>([])
   const [search, setSearch] = useState('')
-  const [showAdd, setShowAdd] = useState(false)
-  const [form, setForm] = useState({ city: '', district: '', pincode: '', state: 'Tamil Nadu' })
-  const [saving, setSaving] = useState(false)
+  const [newCity, setNewCity] = useState('')
+  const [newDistrict, setNewDistrict] = useState('')
+  const [newState, setNewState] = useState('Tamil Nadu')
+  const [adding, setAdding] = useState(false)
+
+  const fetchAreas = async () => {
+    const { data } = await supabase.from('service_areas').select('*').order('created_at', { ascending: false })
+    setAreas((data as ServiceArea[]) || [])
+    setLoading(false)
+  }
 
   useEffect(() => {
     let mounted = true;
-    (async () => {
-      const { data } = await supabase.from('service_areas').select('*').order('created_at', { ascending: false })
-      if (!mounted) return
-      setAreas((data || []) as ServiceArea[])
-      setLoading(false)
-    })()
+    (async () => { if (mounted) { await fetchAreas() } })()
     return () => { mounted = false }
   }, [])
 
-  const filtered = areas.filter((a) => {
-    if (!search.trim()) return true
-    const q = search.toLowerCase()
-    return a.district?.toLowerCase().includes(q) || a.city.toLowerCase().includes(q)
-  })
-
-  const handleAdd = async () => {
-    if (!form.city.trim() || !form.district.trim()) { toast('City and district are required', 'error'); return }
-    setSaving(true)
-    const { data, error } = await supabase.from('service_areas').insert({ city: form.city.trim(), district: form.district.trim(), pincode: form.pincode.trim() || null, state: form.state, is_active: true }).select().single()
-    setSaving(false)
-    if (error) { toast('Failed to add service area', 'error'); return }
-    if (profile) await createAuditLog(profile.id, 'create_service_area', 'service_area', (data as ServiceArea).id, `Added service area ${form.city}, ${form.district}`)
-    toast('Service area added', 'success')
-    setAreas((prev) => [(data as ServiceArea), ...prev])
-    setShowAdd(false)
-    setForm({ city: '', district: '', pincode: '', state: 'Tamil Nadu' })
+  const addArea = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!newCity || !newDistrict) return
+    if (areas.some((a) => a.city.toLowerCase() === newCity.toLowerCase() && a.district === newDistrict)) { toast('Area already exists', 'warning'); return }
+    setAdding(true)
+    const { error } = await supabase.from('service_areas').insert({ city: newCity, district: newDistrict, state: newState, is_active: true })
+    setAdding(false)
+    if (error) { toast('Failed to add area', 'error'); return }
+    if (profile) await createAuditLog(profile.id, 'area_add', 'service_area', null, `Added ${newCity}, ${newDistrict}`)
+    toast('Area added successfully', 'success')
+    setNewCity(''); setNewDistrict('')
+    fetchAreas()
   }
 
-  const toggleActive = async (area: ServiceArea) => {
-    const { error } = await supabase.from('service_areas').update({ is_active: !area.is_active }).eq('id', area.id)
+  const toggleArea = async (area: ServiceArea) => {
+    const newVal = !area.is_active
+    const { error } = await supabase.from('service_areas').update({ is_active: newVal }).eq('id', area.id)
     if (error) { toast('Failed to update', 'error'); return }
-    if (profile) await createAuditLog(profile.id, 'toggle_service_area', 'service_area', area.id, `${area.is_active ? 'Deactivated' : 'Activated'} ${area.city}`)
-    toast(`Area ${area.is_active ? 'deactivated' : 'activated'}`, 'success')
-    setAreas((prev) => prev.map((a) => a.id === area.id ? { ...a, is_active: !a.is_active } : a))
+    setAreas((prev) => prev.map((a) => a.id === area.id ? { ...a, is_active: newVal } : a))
+    toast(`Area ${newVal ? 'enabled' : 'disabled'}`, 'success')
   }
 
-  const handleDelete = async (area: ServiceArea) => {
+  const deleteArea = async (area: ServiceArea) => {
     const { error } = await supabase.from('service_areas').delete().eq('id', area.id)
-    if (error) { toast('Failed to delete', 'error'); return }
-    if (profile) await createAuditLog(profile.id, 'delete_service_area', 'service_area', area.id, `Deleted ${area.city}`)
-    toast('Service area deleted', 'success')
+    if (error) { toast('Failed to delete area', 'error'); return }
+    if (profile) await createAuditLog(profile.id, 'area_delete', 'service_area', area.id, `Deleted ${area.city}, ${area.district}`)
     setAreas((prev) => prev.filter((a) => a.id !== area.id))
+    toast('Area deleted', 'success')
   }
 
   if (loading) return <LoadingScreen message="Loading service areas..." />
 
+  const filtered = areas.filter((a) => {
+    const q = search.toLowerCase()
+    return !q || a.city.toLowerCase().includes(q) || a.district.toLowerCase().includes(q)
+  })
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div><h1 className="text-2xl font-bold text-gray-900">Service Areas</h1><p className="text-sm text-gray-500">Manage serviceable locations</p></div>
-        <Button onClick={() => setShowAdd(true)}><Plus className="mr-2 h-4 w-4" />Add Area</Button>
+    <div className="mx-auto max-w-4xl px-4 py-8">
+      <h1 className="mb-6 text-2xl font-bold text-gray-900">Service Areas</h1>
+
+      <Card className="mb-6">
+        <CardHeader><CardTitle className="text-base">Add New Area</CardTitle></CardHeader>
+        <CardContent>
+          <form onSubmit={addArea} className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div>
+              <Label htmlFor="city">City</Label>
+              <Input id="city" value={newCity} onChange={(e) => setNewCity(e.target.value)} placeholder="e.g. Chennai" required />
+            </div>
+            <div>
+              <Label htmlFor="district">District</Label>
+              <Select id="district" value={newDistrict} onChange={(e) => setNewDistrict(e.target.value)} required>
+                <option value="">Select district</option>
+                {TAMIL_NADU_DISTRICTS.map((d) => <option key={d} value={d}>{d}</option>)}
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="state">State</Label>
+              <Input id="state" value={newState} onChange={(e) => setNewState(e.target.value)} placeholder="Tamil Nadu" />
+            </div>
+            <div className="sm:col-span-3">
+              <Button type="submit" disabled={adding || !newCity || !newDistrict}><Plus className="mr-2 h-4 w-4" /> {adding ? 'Adding...' : 'Add Area'}</Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+
+      <div className="mb-4 relative">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+        <Input className="pl-10" placeholder="Search by district or city..." value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
 
-      <div className="relative max-w-md">
-    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-    <Input className="pl-9" placeholder="Search by district or city..." value={search} onChange={(e) => setSearch(e.target.value)} />
-  </div>
-
-      {filtered.length === 0 ? (
-        <Card><CardContent className="py-12 text-center"><p className="text-gray-500">No service areas found.</p></CardContent></Card>
-      ) : (
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((a) => (
-            <Card key={a.id}>
-              <CardContent className="py-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-start gap-2">
-                    <MapPin className="mt-0.5 h-5 w-5 text-blue-600" />
+      <Card>
+        <CardHeader><CardTitle className="text-base">Service Areas ({filtered.length})</CardTitle></CardHeader>
+        <CardContent>
+          {filtered.length === 0 ? (
+            <p className="py-8 text-center text-gray-500">No service areas found.</p>
+          ) : (
+            <div className="space-y-3">
+              {filtered.map((a) => (
+                <div key={a.id} className="flex items-center justify-between rounded-lg border border-gray-100 p-3">
+                  <div className="flex items-center gap-3">
+                    <MapPin className="h-5 w-5 text-blue-600" />
                     <div>
                       <p className="font-medium text-gray-900">{a.city}</p>
-                      <p className="text-sm text-gray-500">{a.district}{a.pincode ? ` - ${a.pincode}` : ''}</p>
-                      <p className="text-xs text-gray-400">{a.state || 'Tamil Nadu'}</p>
+                      <p className="text-sm text-gray-500">{a.district}, {a.state || 'Tamil Nadu'}</p>
+                      <Badge color={a.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}>{a.is_active ? 'Active' : 'Inactive'}</Badge>
                     </div>
                   </div>
-                  <Badge color={a.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}>{a.is_active ? 'Active' : 'Inactive'}</Badge>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" onClick={() => toggleArea(a)}><Power className="h-3.5 w-3.5" /></Button>
+                    <Button size="sm" variant="danger" onClick={() => deleteArea(a)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                  </div>
                 </div>
-                <div className="mt-3 flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => toggleActive(a)}>{a.is_active ? 'Deactivate' : 'Activate'}</Button>
-                  <Button size="sm" variant="danger" onClick={() => handleDelete(a)}><Trash2 className="mr-1 h-4 w-4" />Delete</Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Add Service Area">
-        <div className="space-y-4">
-          <div>
-            <Label htmlFor="city">City</Label>
-            <Input id="city" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} placeholder="Enter city name" />
-          </div>
-          <div>
-            <Label htmlFor="district">District</Label>
-            <Input id="district" list="districts" value={form.district} onChange={(e) => setForm({ ...form, district: e.target.value })} placeholder="Select or enter district" />
-            <datalist id="districts">{TAMIL_NADU_DISTRICTS.map((d) => <option key={d} value={d} />)}</datalist>
-          </div>
-          <div>
-            <Label htmlFor="pincode">Pincode (optional)</Label>
-            <Input id="pincode" value={form.pincode} onChange={(e) => setForm({ ...form, pincode: e.target.value })} placeholder="Enter pincode" />
-          </div>
-          <div>
-            <Label htmlFor="state">State</Label>
-            <Input id="state" value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} />
-          </div>
-          <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setShowAdd(false)}>Cancel</Button><Button onClick={handleAdd} disabled={saving}>{saving ? 'Saving...' : 'Add Area'}</Button></div>
-        </div>
-      </Modal>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

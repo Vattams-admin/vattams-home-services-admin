@@ -4,11 +4,11 @@ import { supabase } from '@/lib/supabase'
 import type { Notification } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
 import { useToast } from '@/hooks/use-toast'
-import { cn, formatDateTime } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { LoadingScreen } from '@/components/LoadingScreen'
+import { formatDateTime, cn } from '@/lib/utils'
 
 export function AdminNotificationsPage() {
   const { profile } = useAuth()
@@ -16,69 +16,65 @@ export function AdminNotificationsPage() {
   const [loading, setLoading] = useState(true)
   const [notifications, setNotifications] = useState<Notification[]>([])
 
-  useEffect(() => {
+  const fetchNotifs = async () => {
     if (!profile) return
+    const { data } = await supabase.from('notifications').select('*').eq('user_id', profile.id).order('created_at', { ascending: false })
+    setNotifications((data as Notification[]) || [])
+    setLoading(false)
+  }
+
+  useEffect(() => {
     let mounted = true;
-    (async () => {
-      const { data } = await supabase.from('notifications').select('*').eq('user_id', profile.id).order('created_at', { ascending: false })
-      if (!mounted) return
-      setNotifications((data || []) as Notification[])
-      setLoading(false)
-    })()
+    (async () => { if (profile) { await fetchNotifs(); if (!mounted) return } })()
     return () => { mounted = false }
   }, [profile])
 
-  const markAsRead = async (n: Notification) => {
-    if (n.is_read) return
-    const { error } = await supabase.from('notifications').update({ is_read: true }).eq('id', n.id)
-    if (error) { toast('Failed to update', 'error'); return }
-    setNotifications((prev) => prev.map((x) => x.id === n.id ? { ...x, is_read: true } : x))
+  const markRead = async (id: string) => {
+    await supabase.from('notifications').update({ is_read: true }).eq('id', id)
+    setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, is_read: true } : n))
   }
 
   const markAllRead = async () => {
-    const unread = notifications.filter((n) => !n.is_read)
-    if (unread.length === 0) return
-    const ids = unread.map((n) => n.id)
-    const { error } = await supabase.from('notifications').update({ is_read: true }).in('id', ids)
-    if (error) { toast('Failed to update', 'error'); return }
-    setNotifications((prev) => prev.map((x) => ({ ...x, is_read: true })))
+    if (!profile) return
+    await supabase.from('notifications').update({ is_read: true }).eq('user_id', profile.id).eq('is_read', false)
+    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })))
     toast('All notifications marked as read', 'success')
   }
 
   if (loading) return <LoadingScreen message="Loading notifications..." />
-  if (!profile) return null
 
   const unreadCount = notifications.filter((n) => !n.is_read).length
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div><h1 className="text-2xl font-bold text-gray-900">Notifications</h1><p className="text-sm text-gray-500">{unreadCount} unread notification{unreadCount !== 1 ? 's' : ''}</p></div>
-        {unreadCount > 0 && <Button variant="outline" onClick={markAllRead}><CheckCheck className="mr-2 h-4 w-4" />Mark All Read</Button>}
+    <div className="mx-auto max-w-3xl px-4 py-8">
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Notifications</h1>
+          {unreadCount > 0 && <p className="text-sm text-gray-600">{unreadCount} unread</p>}
+        </div>
+        {unreadCount > 0 && <Button variant="outline" onClick={markAllRead}><CheckCheck className="mr-2 h-4 w-4" /> Mark All Read</Button>}
       </div>
 
       {notifications.length === 0 ? (
-        <Card><CardContent className="flex flex-col items-center gap-3 py-12">
+        <Card><CardContent className="flex flex-col items-center py-12">
           <BellOff className="h-12 w-12 text-gray-300" />
-          <p className="text-gray-500">No notifications yet.</p>
+          <p className="mt-4 text-gray-500">No notifications yet.</p>
         </CardContent></Card>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {notifications.map((n) => (
-            <Card key={n.id} className={cn('cursor-pointer transition-colors hover:bg-gray-50', !n.is_read && 'border-blue-300 bg-blue-50/30')} >
-              <CardContent className="py-4" onClick={() => markAsRead(n)}>
-                <div className="flex items-start gap-3">
-                  <div className={cn('flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full', n.is_read ? 'bg-gray-100' : 'bg-blue-100')}>
-                    <Bell className={cn('h-5 w-5', n.is_read ? 'text-gray-400' : 'text-blue-600')} />
+            <Card key={n.id} className={cn('cursor-pointer transition-colors hover:bg-gray-50', !n.is_read && 'border-blue-200 bg-blue-50/30')} onClick={() => !n.is_read && markRead(n.id)}>
+              <CardContent className="flex items-start gap-3 p-4">
+                <div className={`mt-0.5 rounded-full p-2 ${n.is_read ? 'bg-gray-100' : 'bg-blue-100'}`}>
+                  <Bell className={`h-4 w-4 ${n.is_read ? 'text-gray-400' : 'text-blue-600'}`} />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <p className="font-medium text-gray-900">{n.title}</p>
+                    {!n.is_read && <Badge color="bg-blue-100 text-blue-700">New</Badge>}
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium text-gray-900">{n.title}</p>
-                      {!n.is_read && <Badge color="bg-blue-100 text-blue-700">New</Badge>}
-                    </div>
-                    <p className="mt-1 text-sm text-gray-600">{n.message}</p>
-                    <p className="mt-1 text-xs text-gray-400">{formatDateTime(n.created_at)}</p>
-                  </div>
+                  <p className="text-sm text-gray-600">{n.message}</p>
+                  <p className="mt-1 text-xs text-gray-400">{formatDateTime(n.created_at)}</p>
                 </div>
               </CardContent>
             </Card>
