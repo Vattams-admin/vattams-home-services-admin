@@ -1,9 +1,10 @@
 import { lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from '@/lib/auth'
 import { PublicLayout } from '@/components/PublicLayout'
 import { DashboardLayout } from '@/components/DashboardLayout'
 import { ProtectedRoute, RoleDashboardRedirect } from '@/components/ProtectedRoute'
+import { LoadingScreen, NotFoundPage } from '@/components/LoadingScreen'
 
 const HomePage = lazy(() => import('@/pages/public/HomePage').then(m => ({ default: m.HomePage })))
 const ServicesPage = lazy(() => import('@/pages/public/ServicesPage').then(m => ({ default: m.ServicesPage })))
@@ -26,29 +27,30 @@ const CustomerProfilePage = lazy(() => import('@/pages/customer/CustomerProfileP
 const CustomerReviewPage = lazy(() => import('@/pages/customer/CustomerReviewPage').then(m => ({ default: m.CustomerReviewPage })))
 const TechnicianDashboardPage = lazy(() => import('@/pages/technician/TechnicianDashboardPage').then(m => ({ default: m.TechnicianDashboardPage })))
 const TechnicianJobsPage = lazy(() => import('@/pages/technician/TechnicianJobsPage').then(m => ({ default: m.TechnicianJobsPage })))
+const TechnicianWalletPage = lazy(() => import('@/pages/technician/TechnicianWalletPage').then(m => ({ default: m.TechnicianWalletPage })))
 const TechnicianAreasPage = lazy(() => import('@/pages/technician/TechnicianAreasPage').then(m => ({ default: m.TechnicianAreasPage })))
 const TechnicianEarningsPage = lazy(() => import('@/pages/technician/TechnicianEarningsPage').then(m => ({ default: m.TechnicianEarningsPage })))
 const TechnicianProfilePage = lazy(() => import('@/pages/technician/TechnicianProfilePage').then(m => ({ default: m.TechnicianProfilePage })))
 const TechnicianNotificationsPage = lazy(() => import('@/pages/technician/TechnicianNotificationsPage').then(m => ({ default: m.TechnicianNotificationsPage })))
 const AdminDashboardPage = lazy(() => import('@/pages/admin/AdminDashboardPage').then(m => ({ default: m.AdminDashboardPage })))
+const AdminVerificationPage = lazy(() => import('@/pages/admin/AdminVerificationPage').then(m => ({ default: m.AdminVerificationPage })))
 const AdminBookingsPage = lazy(() => import('@/pages/admin/AdminBookingsPage').then(m => ({ default: m.AdminBookingsPage })))
 const AdminCustomersPage = lazy(() => import('@/pages/admin/AdminCustomersPage').then(m => ({ default: m.AdminCustomersPage })))
 const AdminTechniciansPage = lazy(() => import('@/pages/admin/AdminTechniciansPage').then(m => ({ default: m.AdminTechniciansPage })))
 const AdminServiceAreasPage = lazy(() => import('@/pages/admin/AdminServiceAreasPage').then(m => ({ default: m.AdminServiceAreasPage })))
 const AdminPaymentsPage = lazy(() => import('@/pages/admin/AdminPaymentsPage').then(m => ({ default: m.AdminPaymentsPage })))
+const AdminRevenuePage = lazy(() => import('@/pages/admin/AdminRevenuePage').then(m => ({ default: m.AdminRevenuePage })))
 const AdminReportsPage = lazy(() => import('@/pages/admin/AdminReportsPage').then(m => ({ default: m.AdminReportsPage })))
 const AdminSettingsPage = lazy(() => import('@/pages/admin/AdminSettingsPage').then(m => ({ default: m.AdminSettingsPage })))
 const AdminNotificationsPage = lazy(() => import('@/pages/admin/AdminNotificationsPage').then(m => ({ default: m.AdminNotificationsPage })))
-
-function Loading() {
-  return <div className="flex h-screen items-center justify-center text-gray-500">Loading...</div>
-}
+const AdminCouponsPage = lazy(() => import('@/pages/admin/AdminCouponsPage').then(m => ({ default: m.AdminCouponsPage })))
+const AdminAuditLogsPage = lazy(() => import('@/pages/admin/AdminAuditLogsPage').then(m => ({ default: m.AdminAuditLogsPage })))
 
 export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <Suspense fallback={<Loading />}>
+        <Suspense fallback={<LoadingScreen />}>
           <Routes>
             <Route element={<PublicLayout />}>
               <Route path="/" element={<HomePage />} />
@@ -64,9 +66,9 @@ export default function App() {
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             </Route>
 
-            <Route path="/dashboard" element={<ProtectedRoute><RoleDashboardRedirect /></ProtectedRoute>} />
+            <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['customer','technician','admin','super_admin']}><RoleDashboardRedirect /></ProtectedRoute>} />
 
-            <Route path="/customer" element={<ProtectedRoute roles={['customer']}><DashboardLayout /></ProtectedRoute>}>
+            <Route path="/customer" element={<ProtectedRoute allowedRoles={['customer']}><DashboardLayout /></ProtectedRoute>}>
               <Route path="dashboard" element={<CustomerDashboardPage />} />
               <Route path="bookings" element={<CustomerBookingsPage />} />
               <Route path="booking" element={<BookingPage />} />
@@ -77,28 +79,33 @@ export default function App() {
               <Route path="review/:bookingId" element={<CustomerReviewPage />} />
             </Route>
 
-            <Route path="/technician" element={<ProtectedRoute roles={['technician']}><DashboardLayout /></ProtectedRoute>}>
+            <Route path="/technician" element={<ProtectedRoute allowedRoles={['technician']}><DashboardLayout /></ProtectedRoute>}>
               <Route path="dashboard" element={<TechnicianDashboardPage />} />
               <Route path="jobs" element={<TechnicianJobsPage />} />
+              <Route path="wallet" element={<TechnicianWalletPage />} />
               <Route path="areas" element={<TechnicianAreasPage />} />
               <Route path="earnings" element={<TechnicianEarningsPage />} />
               <Route path="notifications" element={<TechnicianNotificationsPage />} />
               <Route path="profile" element={<TechnicianProfilePage />} />
             </Route>
 
-            <Route path="/admin" element={<ProtectedRoute roles={['admin','super_admin']}><DashboardLayout /></ProtectedRoute>}>
+            <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin','super_admin']}><DashboardLayout /></ProtectedRoute>}>
               <Route path="dashboard" element={<AdminDashboardPage />} />
+              <Route path="verification" element={<AdminVerificationPage />} />
               <Route path="bookings" element={<AdminBookingsPage />} />
               <Route path="customers" element={<AdminCustomersPage />} />
               <Route path="technicians" element={<AdminTechniciansPage />} />
               <Route path="service-areas" element={<AdminServiceAreasPage />} />
               <Route path="payments" element={<AdminPaymentsPage />} />
+              <Route path="revenue" element={<AdminRevenuePage />} />
               <Route path="reports" element={<AdminReportsPage />} />
+              <Route path="coupons" element={<AdminCouponsPage />} />
+              <Route path="audit-logs" element={<AdminAuditLogsPage />} />
               <Route path="notifications" element={<AdminNotificationsPage />} />
               <Route path="settings" element={<AdminSettingsPage />} />
             </Route>
 
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </Suspense>
       </BrowserRouter>

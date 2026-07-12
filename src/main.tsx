@@ -1,9 +1,9 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import App from './App'
+import App from '@/App'
 import { I18nProvider } from '@/lib/i18n'
 import { ToastProvider } from '@/hooks/use-toast'
-import './index.css'
+import '@/index.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -12,5 +12,5 @@ createRoot(document.getElementById('root')!).render(
         <App />
       </ToastProvider>
     </I18nProvider>
-  </StrictMode>
+  </StrictMode>,
 )
