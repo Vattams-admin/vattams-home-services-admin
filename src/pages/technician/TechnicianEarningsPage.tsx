@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Calendar, Loader2, TrendingUp, Wallet } from 'lucide-react'
+import { Calendar, Loader as Loader2, TrendingUp, Wallet } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Booking } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'

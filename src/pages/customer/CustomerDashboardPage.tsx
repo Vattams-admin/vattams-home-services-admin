@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Calendar, CheckCircle, Clock, Loader2, Plus, Wallet } from 'lucide-react'
+import { Calendar, CircleCheck as CheckCircle, Clock, Loader as Loader2, Plus, Wallet } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Booking } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'

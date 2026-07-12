@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Download, FileText, Loader2, Wallet } from 'lucide-react'
+import { Download, FileText, Loader as Loader2, Wallet } from 'lucide-react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { supabase } from '@/lib/supabase'

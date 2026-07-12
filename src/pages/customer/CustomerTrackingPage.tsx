@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { Calendar, CheckCircle, Clock, Loader2, MapPin, MessageCircle, Phone, RefreshCw } from 'lucide-react'
+import { Calendar, CircleCheck as CheckCircle, Clock, Loader as Loader2, MapPin, MessageCircle, Phone, RefreshCw } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Booking, Profile } from '@/lib/supabase'
 import { Badge } from '@/components/ui/badge'

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Loader2, Star } from 'lucide-react'
+import { Loader as Loader2, Star } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Booking } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'

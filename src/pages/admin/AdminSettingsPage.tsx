@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Loader2, Settings as SettingsIcon, Save } from 'lucide-react'
+import { Loader as Loader2, Settings as SettingsIcon, Save } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Settings } from '@/lib/supabase'
 import { useToast } from '@/hooks/use-toast'

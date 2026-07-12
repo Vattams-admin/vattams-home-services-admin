@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Calendar, Camera, Loader2, MapPin, Upload } from 'lucide-react'
+import { Calendar, Camera, Loader as Loader2, MapPin, Upload } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Booking, BookingStatus, Profile } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'

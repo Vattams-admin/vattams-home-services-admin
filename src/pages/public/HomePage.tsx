@@ -1,8 +1,5 @@
 import { Link } from 'react-router-dom'
-import {
-  Wind, Sparkles, Snowflake, WashingMachine, Droplets, Zap, Wrench, Cctv,
-  Shield, Clock, Star, CheckCircle, Phone, ArrowRight,
-} from 'lucide-react'
+import { Wind, Sparkles, Snowflake, WashingMachine, Droplets, Zap, Wrench, Cctv, Shield, Clock, Star, CircleCheck as CheckCircle, Phone, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {

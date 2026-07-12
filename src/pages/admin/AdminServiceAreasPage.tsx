@@ -1,7 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import {
-  Loader2, MapPin, Plus, Trash2, Search,
-} from 'lucide-react'
+import { Loader as Loader2, MapPin, Plus, Trash2, Search } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { ServiceArea } from '@/lib/supabase'
 import { useToast } from '@/hooks/use-toast'
