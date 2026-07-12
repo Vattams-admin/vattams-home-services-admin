@@ -1,0 +1,99 @@
+-- VATTAMS Home Services - RLS Policies Reference
+-- Generated: 2026-07-12
+
+-- Auth trigger: auto-creates profile on user signup
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public', 'auth'
+AS $function$
+BEGIN
+  INSERT INTO public.profiles (id, email, name, full_name, mobile, role)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name', ''),
+    COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name', ''),
+    COALESCE(NEW.raw_user_meta_data->>'mobile', ''),
+    COALESCE(NEW.raw_user_meta_data->>'role', 'customer')
+  )
+  ON CONFLICT (id) DO NOTHING;
+
+  INSERT INTO auth.identities (provider_id, user_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
+  VALUES (
+    NEW.email,
+    NEW.id,
+    jsonb_build_object('sub', NEW.id, 'email', NEW.email),
+    'email',
+    now(), now(), now()
+  )
+  ON CONFLICT DO NOTHING;
+
+  RETURN NEW;
+END;
+$function$;
+
+CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION handle_new_user();
+
+-- Helper function: is_admin()
+-- Returns true if the current user has role 'admin' or 'super_admin'
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM profiles
+    WHERE id = auth.uid() AND role IN ('admin', 'super_admin')
+  );
+$$;
+
+-- Key RLS Policies (applied via Supabase MCP migrations):
+
+-- profiles:
+--   SELECT: admin can see all, users can see own
+--   INSERT: users can insert own
+--   UPDATE: admin can update any, users can update own
+--   (profiles_admin_update policy added in migration)
+
+-- bookings:
+--   SELECT: customer, technician, or admin
+--   INSERT: customer (auth.uid() = customer_id)
+--   UPDATE: customer, technician, or admin
+--   DELETE: admin only
+
+-- notifications:
+--   SELECT: user can see own
+--   INSERT: any authenticated user (for cross-user notifications)
+--   UPDATE: user can update own (mark as read)
+--   DELETE: user can delete own
+--   (notif_insert_any policy added in migration)
+
+-- booking_photos:
+--   SELECT: customer, technician, or admin
+--   INSERT: technician or admin
+
+-- invoices:
+--   SELECT: customer, technician, or admin
+--   INSERT: customer or admin
+--   UPDATE: customer or admin
+
+-- reviews:
+--   SELECT: public (true)
+--   INSERT: customer (auth.uid() = customer_id)
+--   UPDATE: customer (auth.uid() = customer_id)
+--   DELETE: customer (auth.uid() = customer_id)
+
+-- payments:
+--   SELECT: customer or admin
+--   INSERT: customer (auth.uid() = customer_id)
+--   UPDATE: customer or admin
+
+-- service_categories:
+--   SELECT: public (anon, authenticated)
+
+-- service_areas:
+--   SELECT: public (anon, authenticated)
+--   INSERT/UPDATE/DELETE: admin only

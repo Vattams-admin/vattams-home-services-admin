@@ -1,77 +1,87 @@
-import { Check } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { Loader2, Check, ArrowRight } from 'lucide-react'
+import { supabase, type ServiceCategory } from '@/lib/supabase'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 
-const tiers = [
-  {
-    name: 'Basic',
-    price: '₹499',
-    period: '/visit',
-    description: 'Perfect for small fixes and quick repairs',
-    features: ['1 service per visit', 'Basic repair work', 'Up to 1 hour service', 'Email support'],
-    popular: false,
-  },
-  {
-    name: 'Standard',
-    price: '₹999',
-    period: '/visit',
-    description: 'Most popular for regular home maintenance',
-    features: ['1 service per visit', 'Standard repair & maintenance', 'Up to 2 hours service', 'Phone & email support', '30-day service warranty'],
-    popular: true,
-  },
-  {
-    name: 'Premium',
-    price: '₹1,999',
-    period: '/visit',
-    description: 'Comprehensive service with priority support',
-    features: ['1 service per visit', 'Premium repair & maintenance', 'Up to 4 hours service', '24/7 priority support', '90-day service warranty', 'Free follow-up visit'],
-    popular: false,
-  },
-];
+const includedItems = [
+  'Professional technician visit',
+  'Quality spare parts (if needed)',
+  '30-day service warranty',
+  'Transparent pricing — no hidden charges',
+  'Post-service cleanup',
+  'Customer support assistance',
+]
 
 export function PricingPage() {
-  return (
-    <div className="mx-auto max-w-7xl px-4 py-12">
-      <div className="mb-12 text-center">
-        <h1 className="text-4xl font-bold text-gray-900">Simple, Transparent Pricing</h1>
-        <p className="mt-2 text-lg text-gray-600">Choose the plan that fits your needs</p>
-      </div>
+  const [services, setServices] = useState<ServiceCategory[]>([])
+  const [loading, setLoading] = useState(true)
 
-      <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
-        {tiers.map((tier) => (
-          <Card
-            key={tier.name}
-            className={tier.popular ? 'border-blue-600 ring-2 ring-blue-600' : ''}
-          >
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-xl">{tier.name}</CardTitle>
-                {tier.popular && <Badge>Most Popular</Badge>}
-              </div>
-              <p className="text-sm text-gray-500">{tier.description}</p>
-              <div className="mt-4">
-                <span className="text-4xl font-bold">{tier.price}</span>
-                <span className="text-gray-500">{tier.period}</span>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <ul className="mb-6 space-y-3">
-                {tier.features.map((feature) => (
-                  <li key={feature} className="flex items-start gap-2 text-sm">
-                    <Check className="mt-0.5 h-5 w-5 shrink-0 text-green-500" />
-                    <span className="text-gray-700">{feature}</span>
-                  </li>
-                ))}
-              </ul>
-              <Button asChild className="w-full" variant={tier.popular ? 'default' : 'outline'}>
-                <Link to="/register/customer">Get Started</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+  useEffect(() => {
+    supabase
+      .from('service_categories')
+      .select('*')
+      .eq('is_active', true)
+      .order('sort_order')
+      .then(({ data, error }) => {
+        if (!error && data) setServices(data as ServiceCategory[])
+        setLoading(false)
+      })
+  }, [])
+
+  return (
+    <div>
+      <section className="bg-gradient-to-br from-blue-700 to-blue-800 py-16 text-white">
+        <div className="mx-auto max-w-7xl px-4 text-center">
+          <h1 className="text-4xl font-bold">Pricing</h1>
+          <p className="mt-2 text-blue-100">Transparent and affordable pricing for every service</p>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-4 py-16">
+        {loading ? (
+          <div className="flex justify-center py-20">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+          </div>
+        ) : services.length === 0 ? (
+          <p className="py-20 text-center text-gray-500">Pricing information will be available soon.</p>
+        ) : (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {services.map((s) => (
+              <Card key={s.id} className="flex flex-col transition-shadow hover:shadow-md">
+                <CardContent className="flex flex-1 flex-col p-6">
+                  <h3 className="text-xl font-semibold text-gray-900">{s.name}</h3>
+                  {s.description && <p className="mt-1 text-sm text-gray-500">{s.description}</p>}
+                  <div className="mt-4">
+                    <span className="text-3xl font-bold text-blue-600">₹{s.base_price}</span>
+                    <span className="text-sm text-gray-500"> onwards</span>
+                  </div>
+                  <ul className="mt-6 flex-1 space-y-2">
+                    {includedItems.map((item) => (
+                      <li key={item} className="flex items-start gap-2 text-sm text-gray-600">
+                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Button asChild className="mt-6 w-full">
+                    <Link to="/register/customer">Book Now <ArrowRight className="ml-2 h-4 w-4" /></Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-12 rounded-xl bg-gray-50 p-8 text-center">
+          <h3 className="text-xl font-semibold text-gray-900">Custom requirements?</h3>
+          <p className="mt-1 text-gray-600">Contact us for bulk bookings and customized service packages.</p>
+          <Button asChild variant="outline" className="mt-4">
+            <Link to="/contact">Contact Us <ArrowRight className="ml-2 h-4 w-4" /></Link>
+          </Button>
+        </div>
+      </section>
     </div>
-  );
+  )
 }

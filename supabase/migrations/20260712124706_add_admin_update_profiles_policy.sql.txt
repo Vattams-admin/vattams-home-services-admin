@@ -1,0 +1,16 @@
+-- Migration: Add admin UPDATE policy on profiles
+-- Date: 2026-07-12
+-- Purpose: Allow admin/super_admin to UPDATE any profile row (technician approval/rejection/suspension)
+
+DROP POLICY IF EXISTS "profiles_admin_update" ON profiles;
+CREATE POLICY "profiles_admin_update"
+ON profiles FOR UPDATE
+TO authenticated
+USING (EXISTS (
+  SELECT 1 FROM profiles p
+  WHERE p.id = auth.uid() AND p.role IN ('admin', 'super_admin')
+))
+WITH CHECK (EXISTS (
+  SELECT 1 FROM profiles p
+  WHERE p.id = auth.uid() AND p.role IN ('admin', 'super_admin')
+));

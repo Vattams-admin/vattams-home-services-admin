@@ -1,90 +1,139 @@
-import { useEffect, useState } from 'react';
-import { useAuth } from '@/lib/auth';
-import { supabase, type Booking } from '@/lib/supabase';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
-import { formatCurrency, formatDate, toCSV, downloadFile } from '@/lib/utils';
-import { generateReportPDF } from '@/lib/payments';
-import { useSEO } from '@/lib/seo';
-// useSEO is imported above; if module not found, inline a no-op
-
-import { Download, FileText, TrendingUp } from 'lucide-react';
+import { useEffect, useState } from 'react'
+import { Calendar, Loader2, TrendingUp, Wallet } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+import type { Booking } from '@/lib/supabase'
+import { useAuth } from '@/lib/auth'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { formatCurrency, formatDate } from '@/lib/utils'
 
 export function TechnicianEarningsPage() {
-  useSEO({ title: 'Earnings | VATTAMS Home Services', description: 'View your completed jobs and total earnings.' });
-  const { profile } = useAuth();
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { profile } = useAuth()
+  const [bookings, setBookings] = useState<Booking[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!profile?.id) return;
-    const load = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('bookings')
-          .select('*, customer:profiles!bookings_customer_id_fkey(full_name, name, mobile)')
-          .eq('technician_id', profile.id)
-          .in('status', ['completed', 'closed', 'payment', 'invoice'])
-          .order('updated_at', { ascending: false });
-        if (error) throw error;
-        setBookings((data || []) as Booking[]);
-      } catch (err) { console.error('Failed to load earnings:', err); }
-      finally { setLoading(false); }
-    };
-    load();
-  }, [profile?.id]);
+    if (!profile?.id) return
+    let mounted = true
+    ;(async () => {
+      setLoading(true)
+      const { data } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('technician_id', profile.id)
+        .eq('status', 'completed')
+        .order('created_at', { ascending: false })
+      if (!mounted) return
+      setBookings((data ?? []) as Booking[])
+      setLoading(false)
+    })()
+    return () => { mounted = false }
+  }, [profile?.id])
 
-  const totalEarnings = bookings.reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    )
+  }
 
-  const handleExportCSV = () => {
-    const rows = bookings.map(b => ({ 'Booking': b.booking_number, 'Service': b.service_name, 'Date': b.scheduled_date || '-', 'Amount': b.amount, 'Customer': b.customer?.full_name || '' }));
-    downloadFile(toCSV(rows as unknown as Record<string, unknown>[], Object.keys(rows[0] || {})), `earnings-${Date.now()}.csv`, 'text/csv');
-  };
+  const total = bookings.reduce((s, b) => s + Number(b.amount), 0)
+  const now = new Date()
+  const thisMonth = bookings
+    .filter((b) => {
+      const d = new Date(b.created_at)
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+    })
+    .reduce((s, b) => s + Number(b.amount), 0)
+  const avg = bookings.length ? total / bookings.length : 0
 
-  const handleExportPDF = () => {
-    const headers = ['Booking #', 'Service', 'Date', 'Customer', 'Amount'];
-    const rows = bookings.map(b => [b.booking_number, b.service_name, formatDate(b.scheduled_date), b.customer?.full_name || '-', formatCurrency(b.amount)]);
-    generateReportPDF('Earnings Report', headers, rows, [{ label: 'Total Earnings', value: formatCurrency(totalEarnings) }, { label: 'Completed Jobs', value: String(bookings.length) }]);
-  };
+  // Monthly earnings for last 6 months
+  const months: { label: string; value: number }[] = []
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const label = d.toLocaleDateString('en-IN', { month: 'short' })
+    const value = bookings
+      .filter((b) => {
+        const bd = new Date(b.created_at)
+        return bd.getMonth() === d.getMonth() && bd.getFullYear() === d.getFullYear()
+      })
+      .reduce((s, b) => s + Number(b.amount), 0)
+    months.push({ label, value })
+  }
+  const maxMonthly = Math.max(...months.map((m) => m.value), 1)
 
-  if (loading) return <div className="flex h-64 items-center justify-center text-gray-500">Loading...</div>;
+  const stats = [
+    { label: 'Total Earnings', value: formatCurrency(total), icon: Wallet, color: 'text-purple-600 bg-purple-100' },
+    { label: 'This Month', value: formatCurrency(thisMonth), icon: TrendingUp, color: 'text-green-600 bg-green-100' },
+    { label: 'Completed Jobs', value: bookings.length, icon: Calendar, color: 'text-blue-600 bg-blue-100' },
+    { label: 'Average per Job', value: formatCurrency(avg), icon: TrendingUp, color: 'text-amber-600 bg-amber-100' },
+  ]
 
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">Earnings</h1>
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card><CardContent className="p-6"><div className="flex items-center gap-3"><div className="h-12 w-12 rounded-lg bg-green-100 flex items-center justify-center"><TrendingUp className="h-6 w-6 text-green-600" /></div><div><p className="text-sm text-gray-500">Total Earnings</p><p className="text-2xl font-bold text-gray-900">{formatCurrency(totalEarnings)}</p></div></div></CardContent></Card>
-        <Card><CardContent className="p-6"><div className="flex items-center gap-3"><div className="h-12 w-12 rounded-lg bg-blue-100 flex items-center justify-center"><FileText className="h-6 w-6 text-blue-600" /></div><div><p className="text-sm text-gray-500">Completed Jobs</p><p className="text-2xl font-bold text-gray-900">{bookings.length}</p></div></div></CardContent></Card>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {stats.map((s) => (
+          <Card key={s.label}>
+            <CardContent className="flex items-center gap-4 p-5">
+              <div className={`rounded-lg p-3 ${s.color}`}>
+                <s.icon className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">{s.label}</p>
+                <p className="text-xl font-bold text-gray-900">{s.value}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
-      <div className="flex gap-2">
-        <Button variant="outline" size="sm" onClick={handleExportCSV}><Download className="h-4 w-4 mr-1" /> Export CSV</Button>
-        <Button variant="outline" size="sm" onClick={handleExportPDF}><Download className="h-4 w-4 mr-1" /> Export PDF</Button>
-      </div>
-      {bookings.length === 0 ? (
-        <Card><CardContent className="p-8 text-center text-gray-500">No completed jobs yet.</CardContent></Card>
-      ) : (
-        <Card>
-          <CardHeader><CardTitle>Completed Jobs</CardTitle></CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader><TableRow><TableHead>Booking #</TableHead><TableHead>Service</TableHead><TableHead>Date</TableHead><TableHead>Customer</TableHead><TableHead>Amount</TableHead></TableRow></TableHeader>
-              <TableBody>
-                {bookings.map((b) => (
-                  <TableRow key={b.id}>
-                    <TableCell className="font-medium">{b.booking_number}</TableCell>
-                    <TableCell>{b.service_name}</TableCell>
-                    <TableCell>{formatDate(b.scheduled_date)}</TableCell>
-                    <TableCell>{b.customer?.full_name || '-'}</TableCell>
-                    <TableCell>{formatCurrency(b.amount)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
+
+      <Card>
+        <CardHeader><CardTitle>Monthly Earnings (Last 6 Months)</CardTitle></CardHeader>
+        <CardContent>
+          <div className="flex items-end justify-between gap-3 pt-4" style={{ height: '200px' }}>
+            {months.map((m) => (
+              <div key={m.label} className="flex flex-1 flex-col items-center gap-2">
+                <span className="text-xs font-medium text-gray-600">
+                  {m.value > 0 ? formatCurrency(m.value) : ''}
+                </span>
+                <div
+                  className="w-full rounded-t-md bg-gradient-to-t from-blue-500 to-blue-400 transition-all"
+                  style={{ height: `${(m.value / maxMonthly) * 140}px`, minHeight: m.value > 0 ? '8px' : '2px' }}
+                />
+                <span className="text-xs text-gray-500">{m.label}</span>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>Earnings History</CardTitle></CardHeader>
+        <CardContent>
+          {bookings.length === 0 ? (
+            <div className="py-12 text-center">
+              <Wallet className="mx-auto mb-3 h-10 w-10 text-gray-300" />
+              <p className="text-sm text-gray-500">No earnings yet. Complete jobs to start earning!</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {bookings.map((b) => (
+                <div key={b.id} className="flex items-center justify-between rounded-lg border border-gray-100 p-4">
+                  <div className="min-w-0">
+                    <p className="font-medium text-gray-900">{b.service_name}</p>
+                    <p className="text-sm text-gray-500">
+                      {b.booking_number} · {formatDate(b.created_at)}
+                    </p>
+                  </div>
+                  <span className="text-lg font-bold text-green-600">{formatCurrency(b.amount)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
-  );
+  )
 }

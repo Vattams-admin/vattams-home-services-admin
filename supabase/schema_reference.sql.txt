@@ -1,0 +1,235 @@
+-- VATTAMS Home Services - Database Schema Reference
+-- Generated: 2026-07-12
+-- This file documents the full database schema for backup/restoration purposes.
+
+-- profiles: Users with role (customer/technician/admin/super_admin) and status (active/pending/rejected/suspended)
+CREATE TABLE profiles (
+  id uuid NOT NULL,
+  email text NOT NULL,
+  name text NOT NULL,
+  mobile text NOT NULL,
+  role text NOT NULL DEFAULT 'customer',
+  created_at timestamptz DEFAULT now(),
+  full_name text,
+  address text,
+  district text,
+  city text,
+  pincode text,
+  experience text,
+  skills _text,
+  bio text,
+  status text DEFAULT 'active',
+  is_available boolean DEFAULT true
+);
+
+-- bookings: Service bookings with status flow
+CREATE TABLE bookings (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  booking_number text NOT NULL DEFAULT ('BK' || upper(substr(encode(gen_random_bytes(8), 'hex'), 1, 8))),
+  customer_id uuid NOT NULL,
+  technician_id uuid,
+  service_category_id uuid,
+  service_name text NOT NULL,
+  status text NOT NULL DEFAULT 'created',
+  scheduled_date date,
+  scheduled_time text,
+  address text,
+  city text,
+  district text,
+  pincode text,
+  lat double precision,
+  lng double precision,
+  customer_notes text,
+  amount numeric DEFAULT 0,
+  cancelled_by text,
+  cancel_reason text,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  service_id uuid,
+  notes text,
+  area text
+);
+
+-- booking_photos: Before/after photos for bookings
+CREATE TABLE booking_photos (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  booking_id uuid NOT NULL,
+  photo_url text NOT NULL,
+  photo_type text NOT NULL,
+  created_at timestamptz DEFAULT now()
+);
+
+-- invoices: Generated invoices for completed bookings
+CREATE TABLE invoices (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  invoice_number text NOT NULL DEFAULT ('INV' || upper(substr(encode(gen_random_bytes(8), 'hex'), 1, 8))),
+  booking_id uuid NOT NULL,
+  customer_id uuid NOT NULL,
+  technician_id uuid,
+  service_name text NOT NULL,
+  amount numeric NOT NULL DEFAULT 0,
+  status text NOT NULL DEFAULT 'pending',
+  payment_method text DEFAULT 'upi',
+  paid_at timestamptz,
+  created_at timestamptz DEFAULT now()
+);
+
+-- notifications: User notifications
+CREATE TABLE notifications (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  title text NOT NULL,
+  message text NOT NULL,
+  type text,
+  is_read boolean DEFAULT false,
+  related_id uuid,
+  created_at timestamptz DEFAULT now()
+);
+
+-- reviews: Customer ratings for technicians
+CREATE TABLE reviews (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  booking_id uuid NOT NULL,
+  customer_id uuid NOT NULL,
+  technician_id uuid NOT NULL,
+  rating integer NOT NULL,
+  review_text text,
+  created_at timestamptz DEFAULT now()
+);
+
+-- payments: Payment records
+CREATE TABLE payments (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  payment_number text,
+  booking_id uuid,
+  customer_id uuid NOT NULL,
+  amount numeric NOT NULL,
+  status text NOT NULL,
+  method text,
+  upi_id text,
+  transaction_id text,
+  paid_at timestamptz,
+  created_at timestamptz DEFAULT now()
+);
+
+-- service_categories: Service types with pricing
+CREATE TABLE service_categories (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  name_ta text,
+  description text,
+  description_ta text,
+  icon text,
+  base_price numeric,
+  image_url text,
+  is_active boolean DEFAULT true,
+  sort_order integer,
+  created_at timestamptz DEFAULT now()
+);
+
+-- service_areas: Pincodes and areas served
+CREATE TABLE service_areas (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  city text NOT NULL,
+  city_ta text,
+  district text NOT NULL,
+  pincode text,
+  is_active boolean DEFAULT true,
+  created_at timestamptz DEFAULT now(),
+  state text,
+  taluk text,
+  area text,
+  area_type text,
+  lat double precision,
+  lng double precision,
+  updated_at timestamptz DEFAULT now()
+);
+
+-- technician_working_areas: Technician service areas
+CREATE TABLE technician_working_areas (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  technician_id uuid NOT NULL,
+  district text NOT NULL,
+  service_radius_km integer,
+  created_at timestamptz DEFAULT now()
+);
+
+-- technician_profiles: Extended technician info
+CREATE TABLE technician_profiles (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  city text NOT NULL,
+  district text NOT NULL,
+  service_category text NOT NULL,
+  experience text,
+  aadhaar text,
+  profile_photo text,
+  status text NOT NULL,
+  is_available boolean,
+  current_lat double precision,
+  current_lng double precision,
+  location_updated_at timestamptz,
+  created_at timestamptz DEFAULT now()
+);
+
+-- technician_locations: Live technician locations
+CREATE TABLE technician_locations (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  technician_id uuid NOT NULL,
+  booking_id uuid,
+  lat double precision NOT NULL,
+  lng double precision NOT NULL,
+  heading double precision,
+  speed double precision,
+  updated_at timestamptz DEFAULT now()
+);
+
+-- settings: Company configuration
+CREATE TABLE settings (
+  id integer NOT NULL,
+  company_name text,
+  company_logo text,
+  upi_id text,
+  gst_number text,
+  working_hours text,
+  service_areas text,
+  customer_support_phone text,
+  technician_support_phone text,
+  whatsapp_number text,
+  updated_at timestamptz DEFAULT now()
+);
+
+-- admins: Admin records
+CREATE TABLE admins (
+  id uuid NOT NULL,
+  email text NOT NULL,
+  name text NOT NULL,
+  role text NOT NULL,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamptz DEFAULT now()
+);
+
+-- blog_posts: Blog content
+CREATE TABLE blog_posts (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  title text NOT NULL,
+  title_ta text,
+  excerpt text,
+  excerpt_ta text,
+  content text NOT NULL,
+  content_ta text,
+  image_url text,
+  author text,
+  is_published boolean DEFAULT false,
+  published_at timestamptz,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- All tables have RLS enabled with role-based policies.
+-- Key policies:
+-- - profiles: admin can SELECT/UPDATE all, users can SELECT/UPDATE own
+-- - bookings: customer/technician/admin can SELECT/UPDATE relevant rows
+-- - notifications: users can SELECT/UPDATE own, any authenticated can INSERT
+-- - reviews: public SELECT, customer can INSERT/UPDATE/DELETE own
+-- - booking_photos: customer/technician/admin can SELECT, technician/admin can INSERT

@@ -1,71 +1,58 @@
-import { useState } from 'react';
-import { ChevronDown, CircleHelp as HelpCircle } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
+import { useState } from 'react'
+import { ChevronDown } from 'lucide-react'
+import { Card, CardContent } from '@/components/ui/card'
 
-const faqs = [
-  {
-    q: 'How do I book a service on VATTAMS?',
-    a: 'Simply click "Book Now", select your service, choose a date and time, enter your address, and confirm. You can also book via WhatsApp or phone call.',
-  },
-  {
-    q: 'Are the technicians verified?',
-    a: 'Yes, all VATTAMS technicians are background-checked, skill-verified, and trained professionals. We ensure quality and safety for every service.',
-  },
-  {
-    q: 'What areas do you cover?',
-    a: 'We currently cover all 38 districts of Tamil Nadu. You can check if your area is serviceable on our Cities page.',
-  },
-  {
-    q: 'How is the pricing determined?',
-    a: 'Each service has a base price displayed on the Services page. The final price may vary based on the complexity of work and materials required. You will always get an upfront quote before the service begins.',
-  },
-  {
-    q: 'What payment methods are accepted?',
-    a: 'We accept UPI, credit/debit cards, net banking, and cash. Online payments can be made securely through our platform after the service is completed.',
-  },
-  {
-    q: 'Can I cancel or reschedule a booking?',
-    a: 'Yes, you can cancel or reschedule a booking from your dashboard at any time before the technician is assigned. Cancellations after assignment may incur a nominal fee.',
-  },
-];
+type Faq = { q: string; a: string }
+
+const faqs: Faq[] = [
+  { q: 'How do I book a service?', a: 'You can book a service by creating a customer account on our platform, selecting your desired service, choosing a date and time, and confirming your booking. You can also call us directly and our team will assist you.' },
+  { q: 'What are the payment options?', a: 'We accept multiple payment methods including UPI, credit/debit cards, net banking, and cash after service completion. You can choose your preferred method at the time of booking or after the service is done.' },
+  { q: 'Are the technicians verified?', a: 'Yes, all our technicians undergo background verification and are trained professionals. We ensure they meet our quality standards before they are assigned to any service request.' },
+  { q: 'Can I cancel or reschedule a booking?', a: 'Yes, you can cancel or reschedule a booking from your dashboard. Cancellations made at least 2 hours before the scheduled time incur no charge. Late cancellations may be subject to a nominal fee.' },
+  { q: 'Is there a warranty on the services?', a: 'Yes, we offer a 30-day service warranty on most services. If you face any issue related to the service within this period, we will send a technician to fix it at no additional cost.' },
+  { q: 'How is the pricing determined?', a: 'Our pricing is transparent and based on the service category. Each service has a base price, and any additional work or spare parts required will be quoted by the technician before proceeding. There are no hidden charges.' },
+  { q: 'What if I am not satisfied with the service?', a: 'Customer satisfaction is our priority. If you are not satisfied, please contact our support team within 48 hours. We will arrange a revisit or resolve the issue at no extra cost.' },
+  { q: 'Do you provide service on weekends?', a: 'Yes, our technicians are available on weekends and public holidays. You can select your preferred date and time while booking, including weekend slots.' },
+  { q: 'How long does a typical service take?', a: 'The duration depends on the type and complexity of the service. Most standard services take 1-2 hours. The technician will give you an estimated time upon assessment.' },
+  { q: 'Can I provide feedback or rate the technician?', a: 'Absolutely! After every completed service, you can rate your technician and leave a review from your dashboard. Your feedback helps us maintain quality and improve our services.' },
+]
 
 export function FaqPage() {
-  const [openIndex, setOpenIndex] = useState<number | null>(0);
+  const [open, setOpen] = useState<number | null>(0)
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-12">
-      <div className="mb-12 text-center">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-50">
-          <HelpCircle className="h-8 w-8 text-blue-600" />
+    <div>
+      <section className="bg-gradient-to-br from-blue-700 to-blue-800 py-16 text-white">
+        <div className="mx-auto max-w-7xl px-4 text-center">
+          <h1 className="text-4xl font-bold">Frequently Asked Questions</h1>
+          <p className="mt-2 text-blue-100">Find answers to common questions about our services</p>
         </div>
-        <h1 className="text-4xl font-bold text-gray-900">Frequently Asked Questions</h1>
-        <p className="mt-2 text-lg text-gray-600">Find answers to common questions</p>
-      </div>
+      </section>
 
-      <div className="space-y-4">
-        {faqs.map((faq, index) => (
-          <Card key={index}>
-            <CardContent className="p-0">
-              <button
-                onClick={() => setOpenIndex(openIndex === index ? null : index)}
-                className="flex w-full items-center justify-between p-5 text-left"
-              >
-                <span className="font-semibold text-gray-900">{faq.q}</span>
-                <ChevronDown
-                  className={`h-5 w-5 shrink-0 text-gray-500 transition-transform ${
-                    openIndex === index ? 'rotate-180' : ''
-                  }`}
-                />
-              </button>
-              {openIndex === index && (
-                <div className="px-5 pb-5">
-                  <p className="text-gray-600">{faq.a}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <section className="mx-auto max-w-3xl px-4 py-16">
+        <div className="space-y-3">
+          {faqs.map((faq, i) => (
+            <Card key={i}>
+              <CardContent className="p-0">
+                <button
+                  onClick={() => setOpen(open === i ? null : i)}
+                  className="flex w-full items-center justify-between p-4 text-left"
+                >
+                  <span className="font-medium text-gray-900">{faq.q}</span>
+                  <ChevronDown
+                    className={`h-5 w-5 shrink-0 text-gray-500 transition-transform ${
+                      open === i ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+                {open === i && (
+                  <div className="border-t px-4 py-3 text-sm text-gray-600">{faq.a}</div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </section>
     </div>
-  );
+  )
 }

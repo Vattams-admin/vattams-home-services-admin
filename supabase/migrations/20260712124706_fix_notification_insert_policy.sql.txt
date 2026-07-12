@@ -1,0 +1,9 @@
+-- Migration: Allow any authenticated user to insert notifications for any user
+-- Date: 2026-07-12
+-- Purpose: Enable cross-user notifications (customer -> admin, admin -> technician, technician -> customer)
+
+DROP POLICY IF EXISTS "notif_insert_any" ON notifications;
+CREATE POLICY "notif_insert_any"
+ON notifications FOR INSERT
+TO authenticated
+WITH CHECK (true);

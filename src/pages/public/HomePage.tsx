@@ -1,103 +1,142 @@
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router-dom'
 import {
-  ShieldCheck, Clock, BadgeIndianRupee, Headphones, ArrowRight,
-} from 'lucide-react';
-import { useI18n } from '@/lib/i18n';
-import { Logo } from '@/components/Logo';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { useSEO } from '@/lib/seo';
-import { whatsappBookingLink, telLink, PRIMARY_PHONE } from '@/lib/constants';
-import { MessageCircle, Phone } from 'lucide-react';
+  Wind, Sparkles, Snowflake, WashingMachine, Droplets, Zap, Wrench, Cctv,
+  Shield, Clock, Star, CheckCircle, Phone, ArrowRight,
+} from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import {
+  SERVICE_AREAS, PRIMARY_PHONE_DISPLAY, telLink, PRIMARY_PHONE, whatsappSupportLink,
+} from '@/lib/constants'
 
 const services = [
-  { name: 'AC Service', desc: 'AC repair, installation & servicing' },
-  { name: 'Deep Cleaning', desc: 'Home & kitchen deep cleaning' },
-  { name: 'Plumbing', desc: 'Leaks, fittings & installations' },
-  { name: 'Electrical', desc: 'Wiring, repairs & installations' },
-  { name: 'Painting', desc: 'Interior & exterior painting' },
-  { name: 'Pest Control', desc: 'Termite & general pest control' },
-];
+  { icon: Wind, name: 'AC Service', desc: 'Installation, repair & maintenance' },
+  { icon: Sparkles, name: 'Deep Cleaning', desc: 'Home & office deep cleaning' },
+  { icon: Snowflake, name: 'Refrigerator', desc: 'Fridge repair & servicing' },
+  { icon: WashingMachine, name: 'Washing Machine', desc: 'Repair & installation' },
+  { icon: Droplets, name: 'Plumbing', desc: 'Leaks, fittings & fixtures' },
+  { icon: Zap, name: 'Electrical', desc: 'Wiring, repairs & safety' },
+  { icon: Wrench, name: 'Appliance Repair', desc: 'All home appliance repairs' },
+  { icon: Cctv, name: 'CCTV Installation', desc: 'Security camera setup' },
+]
 
 const features = [
-  { icon: ShieldCheck, title: 'Verified Technicians', desc: 'Background-checked & skilled pros' },
+  { icon: Shield, title: 'Verified Professionals', desc: 'Background-checked technicians' },
   { icon: Clock, title: 'On-Time Service', desc: 'Punctual and reliable visits' },
-  { icon: BadgeIndianRupee, title: 'Transparent Pricing', desc: 'No hidden charges, upfront quotes' },
-  { icon: Headphones, title: '24/7 Support', desc: 'Round-the-clock customer care' },
-];
+  { icon: Star, title: 'Quality Assured', desc: 'Rated by thousands of customers' },
+  { icon: CheckCircle, title: 'Satisfaction Guarantee', desc: 'Work done right, guaranteed' },
+]
 
 export function HomePage() {
-  const { t } = useI18n();
-  useSEO({ title: 'VATTAMS Home Services — Trusted Home Services Across Tamil Nadu', description: 'Book trusted home services in minutes — AC repair, deep cleaning, plumbing, electrical & more. Verified technicians, transparent pricing.' });
-
   return (
-    <div className="space-y-16 pb-16">
+    <div>
       {/* Hero */}
-      <section className="relative bg-gradient-to-br from-blue-600 to-blue-800 text-white">
-        <div className="mx-auto max-w-7xl px-4 py-20 text-center">
-          <Logo size="lg" className="mb-6 justify-center text-white [&_span]:text-white" />
-          <h1 className="text-4xl font-bold md:text-5xl">{t('home.hero_title')}</h1>
-          <p className="mx-auto mt-4 max-w-2xl text-lg text-blue-100">{t('home.hero_subtitle')}</p>
-          <Button asChild size="lg" variant="secondary" className="mt-8 bg-white text-blue-700 hover:bg-blue-50">
-            <Link to="/register/customer">{t('home.book_now')} <ArrowRight className="ml-2 h-5 w-5" /></Link>
-          </Button>
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
-            <Button asChild size="lg" variant="secondary" className="bg-white text-green-700 hover:bg-green-50">
-              <a href={whatsappBookingLink('Hello VATTAMS, I would like to book a service.')} target="_blank" rel="noopener"><MessageCircle className="mr-2 h-5 w-5" /> WhatsApp Booking</a>
-            </Button>
-            <Button asChild size="lg" variant="secondary" className="bg-white text-blue-700 hover:bg-blue-50">
-              <a href={telLink(PRIMARY_PHONE)}><Phone className="mr-2 h-5 w-5" /> Call Now</a>
-            </Button>
+      <section className="relative overflow-hidden bg-gradient-to-br from-blue-700 via-blue-600 to-blue-800 text-white">
+        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, white 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
+        <div className="relative mx-auto max-w-7xl px-4 py-20 md:py-28">
+          <div className="max-w-2xl">
+            <h1 className="text-4xl font-bold tracking-tight md:text-5xl">
+              Trusted Home Services at Your Doorstep
+            </h1>
+            <p className="mt-4 text-lg text-blue-100">
+              Professional technicians for AC, cleaning, plumbing, electrical and more across Tamil Nadu.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Button asChild size="lg" className="bg-white text-blue-700 hover:bg-blue-50">
+                <Link to="/register/customer">Book a Service <ArrowRight className="ml-2 h-4 w-4" /></Link>
+              </Button>
+              <Button asChild size="lg" variant="outline" className="border-white text-white hover:bg-white/10">
+                <a href={telLink(PRIMARY_PHONE)}><Phone className="mr-2 h-4 w-4" /> {PRIMARY_PHONE_DISPLAY}</a>
+              </Button>
+            </div>
           </div>
         </div>
       </section>
 
       {/* Services Grid */}
-      <section className="mx-auto max-w-7xl px-4">
-        <h2 className="mb-8 text-center text-3xl font-bold">{t('home.our_services')}</h2>
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {services.map(({ name, desc }) => (
-            <Card key={name} className="transition-shadow hover:shadow-md">
+      <section className="mx-auto max-w-7xl px-4 py-16">
+        <div className="mb-10 text-center">
+          <h2 className="text-3xl font-bold text-gray-900">Our Services</h2>
+          <p className="mt-2 text-gray-600">Comprehensive home services by trusted professionals</p>
+        </div>
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          {services.map((s) => (
+            <Card key={s.name} className="transition-shadow hover:shadow-md">
               <CardContent className="flex flex-col items-center p-6 text-center">
-                <h3 className="text-lg font-semibold">{name}</h3>
-                <p className="mt-2 text-sm text-gray-600">{desc}</p>
+                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-blue-50">
+                  <s.icon className="h-6 w-6 text-blue-600" />
+                </div>
+                <h3 className="font-semibold text-gray-900">{s.name}</h3>
+                <p className="mt-1 text-sm text-gray-500">{s.desc}</p>
               </CardContent>
             </Card>
           ))}
         </div>
         <div className="mt-8 text-center">
-          <Button asChild variant="outline"><Link to="/services">{t('home.view_all')} <ArrowRight className="ml-2 h-4 w-4" /></Link></Button>
+          <Button asChild variant="outline">
+            <Link to="/services">View All Services <ArrowRight className="ml-2 h-4 w-4" /></Link>
+          </Button>
         </div>
       </section>
 
-      {/* Why Choose */}
+      {/* Features */}
       <section className="bg-gray-50 py-16">
         <div className="mx-auto max-w-7xl px-4">
-          <h2 className="mb-8 text-center text-3xl font-bold">{t('home.why_choose')}</h2>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {features.map(({ icon: Icon, title, desc }) => (
-              <div key={title} className="text-center">
-                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-blue-600">
-                  <Icon className="h-7 w-7 text-white" />
-                </div>
-                <h3 className="font-semibold">{title}</h3>
-                <p className="mt-1 text-sm text-gray-600">{desc}</p>
-              </div>
+          <div className="mb-10 text-center">
+            <h2 className="text-3xl font-bold text-gray-900">Why Choose VATTAMS?</h2>
+            <p className="mt-2 text-gray-600">We make home services simple, reliable and affordable</p>
+          </div>
+          <div className="grid gap-6 md:grid-cols-4">
+            {features.map((f) => (
+              <Card key={f.title}>
+                <CardContent className="p-6 text-center">
+                  <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-blue-600">
+                    <f.icon className="h-6 w-6 text-white" />
+                  </div>
+                  <h3 className="font-semibold text-gray-900">{f.title}</h3>
+                  <p className="mt-1 text-sm text-gray-500">{f.desc}</p>
+                </CardContent>
+              </Card>
             ))}
           </div>
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="mx-auto max-w-7xl px-4">
-        <div className="rounded-2xl bg-blue-600 px-8 py-12 text-center text-white">
-          <h2 className="text-3xl font-bold">Ready to book your service?</h2>
-          <p className="mt-2 text-blue-100">Get started in minutes with VATTAMS Home Services</p>
-          <Button asChild size="lg" className="mt-6 bg-white text-blue-700 hover:bg-blue-50">
-            <Link to="/register/customer">{t('home.book_now')} <ArrowRight className="ml-2 h-5 w-5" /></Link>
+      {/* Cities */}
+      <section className="mx-auto max-w-7xl px-4 py-16">
+        <div className="mb-10 text-center">
+          <h2 className="text-3xl font-bold text-gray-900">Cities We Serve</h2>
+          <p className="mt-2 text-gray-600">Available across {SERVICE_AREAS.length} cities in Tamil Nadu</p>
+        </div>
+        <div className="flex flex-wrap justify-center gap-3">
+          {SERVICE_AREAS.map((city) => (
+            <span key={city} className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm">
+              {city}
+            </span>
+          ))}
+        </div>
+        <div className="mt-8 text-center">
+          <Button asChild variant="outline">
+            <Link to="/cities">View All Cities <ArrowRight className="ml-2 h-4 w-4" /></Link>
           </Button>
         </div>
       </section>
+
+      {/* CTA */}
+      <section className="bg-blue-600 py-16 text-white">
+        <div className="mx-auto max-w-4xl px-4 text-center">
+          <h2 className="text-3xl font-bold">Ready to Book a Service?</h2>
+          <p className="mt-2 text-blue-100">Get started in minutes — our technicians are ready to help.</p>
+          <div className="mt-8 flex flex-wrap justify-center gap-3">
+            <Button asChild size="lg" className="bg-white text-blue-700 hover:bg-blue-50">
+              <Link to="/register/customer">Book Now</Link>
+            </Button>
+            <Button asChild size="lg" variant="outline" className="border-white text-white hover:bg-white/10">
+              <a href={whatsappSupportLink('Hello VATTAMS, I would like to book a service.')}>WhatsApp Us</a>
+            </Button>
+          </div>
+        </div>
+      </section>
     </div>
-  );
+  )
 }
