@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { CheckCircle, XCircle, Eye, FileText, Wallet, Ban, RotateCcw, Banknote, Check } from 'lucide-react'
+import { CircleCheck as CheckCircle, Circle as XCircle, Eye, FileText, Wallet, Ban, RotateCcw, Banknote, Check } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Profile, TechnicianWallet, TechnicianDocument, VerificationPayment, Refund } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Calendar, CheckCircle, CreditCard, TrendingUp, Plus, ArrowRight } from 'lucide-react'
+import { Calendar, CircleCheck as CheckCircle, CreditCard, TrendingUp, Plus, ArrowRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Booking, Profile } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'

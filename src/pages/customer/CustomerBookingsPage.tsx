@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Eye, XCircle } from 'lucide-react'
+import { Eye, Circle as XCircle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Booking, Profile, BookingStatus } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'

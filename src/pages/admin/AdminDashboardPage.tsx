@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Users, Wrench, Clock, Activity, TrendingUp, CheckCircle, XCircle, Eye } from 'lucide-react'
+import { Users, Wrench, Clock, Activity, TrendingUp, CircleCheck as CheckCircle, Circle as XCircle, Eye } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Profile, Booking, BookingStatus } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'

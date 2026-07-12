@@ -1,7 +1,5 @@
 import { Link } from 'react-router-dom'
-import {
-  Wind, Sparkles, Snowflake, Droplets, Zap, Wrench, Cctv, Shield, CheckCircle, ArrowRight,
-} from 'lucide-react'
+import { Wind, Sparkles, Snowflake, Droplets, Zap, Wrench, Cctv, Shield, CircleCheck as CheckCircle, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatCurrency } from '@/lib/utils'

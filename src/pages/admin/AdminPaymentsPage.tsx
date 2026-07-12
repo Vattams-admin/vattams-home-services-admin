@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Eye, IndianRupee, Clock, CheckCircle, TrendingUp, Calendar } from 'lucide-react'
+import { Eye, IndianRupee, Clock, CircleCheck as CheckCircle, TrendingUp, Calendar } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Invoice, Booking, Profile, Settings } from '@/lib/supabase'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'

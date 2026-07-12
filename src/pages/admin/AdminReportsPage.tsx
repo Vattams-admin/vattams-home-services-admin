@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { TrendingUp, Download, FileText, Calendar, CheckCircle, XCircle, IndianRupee } from 'lucide-react'
+import { TrendingUp, Download, FileText, Calendar, CircleCheck as CheckCircle, Circle as XCircle, IndianRupee } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Booking, Profile, Invoice, RevenueTransaction } from '@/lib/supabase'
 import { cn, formatCurrency, BOOKING_STATUS_COLORS } from '@/lib/utils'

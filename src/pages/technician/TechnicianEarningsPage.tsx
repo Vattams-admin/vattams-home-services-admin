@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Download, TrendingUp, Calendar, Clock, Loader2 } from 'lucide-react'
+import { Download, TrendingUp, Calendar, Clock, Loader as Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Invoice, Settings } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'

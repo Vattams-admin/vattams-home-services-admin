@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { Loader2, Star } from 'lucide-react'
+import { Loader as Loader2, Star } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Booking, Review } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'

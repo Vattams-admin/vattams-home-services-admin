@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { CheckCircle, Circle, MapPin, User, Phone, MessageCircle, Calendar, IndianRupee } from 'lucide-react'
+import { CircleCheck as CheckCircle, Circle, MapPin, User, Phone, MessageCircle, Calendar, IndianRupee } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Booking, Profile } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
