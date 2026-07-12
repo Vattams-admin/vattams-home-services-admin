@@ -1,23 +1,5 @@
 import { useNavigate, Link } from 'react-router-dom'
-import {
-  Target,
-  Eye,
-  Heart,
-  Award,
-  Users,
-  ShieldCheck,
-  TrendingUp,
-  HandHeart,
-  Lightbulb,
-  Phone,
-  Mail,
-  MapPin,
-  ArrowRight,
-  Star,
-  CheckCircle2,
-  Building2,
-  Sparkles,
-} from 'lucide-react'
+import { Target, Eye, Heart, Award, Users, ShieldCheck, TrendingUp, HandHeart, Lightbulb, Phone, Mail, MapPin, ArrowRight, Star, CircleCheck as CheckCircle2, Building2, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'

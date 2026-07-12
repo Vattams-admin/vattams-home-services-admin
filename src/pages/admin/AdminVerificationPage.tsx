@@ -1,18 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import {
-  ShieldCheck,
-  CheckCircle2,
-  XCircle,
-  Eye,
-  Loader2,
-  Search,
-  FileText,
-  Filter,
-  AlertCircle,
-  Phone,
-  MapPin,
-  Award,
-} from 'lucide-react'
+import { ShieldCheck, CircleCheck as CheckCircle2, Circle as XCircle, Eye, Loader as Loader2, Search, FileText, Filter, CircleAlert as AlertCircle, Phone, MapPin, Award } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'

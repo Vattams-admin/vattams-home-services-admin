@@ -1,18 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import {
-  Megaphone,
-  Plus,
-  Pencil,
-  Trash2,
-  Loader2,
-  Search,
-  AlertCircle,
-  Image,
-  Bell,
-  Eye,
-  MousePointerClick,
-  TrendingUp,
-} from 'lucide-react'
+import { Megaphone, Plus, Pencil, Trash2, Loader as Loader2, Search, CircleAlert as AlertCircle, Image, Bell, Eye, MousePointerClick, TrendingUp } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'

@@ -1,16 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import {
-  Calendar,
-  Clock,
-  ArrowRight,
-  Search,
-  User,
-  TrendingUp,
-  BookOpen,
-  AlertCircle,
-  Phone,
-} from 'lucide-react'
+import { Calendar, Clock, ArrowRight, Search, User, TrendingUp, BookOpen, CircleAlert as AlertCircle, Phone } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'

@@ -1,16 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import {
-  User,
-  Phone,
-  MapPin,
-  Loader2,
-  Save,
-  Building2,
-  Mail,
-  Briefcase,
-  Wrench,
-  FileText,
-} from 'lucide-react'
+import { User, Phone, MapPin, Loader as Loader2, Save, Building2, Mail, Briefcase, Wrench, FileText } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input, Select, Textarea } from '@/components/ui/input'

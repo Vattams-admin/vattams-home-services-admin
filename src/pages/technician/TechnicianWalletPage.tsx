@@ -1,16 +1,5 @@
 import { useEffect, useState } from 'react'
-import {
-  Wallet,
-  Loader2,
-  CheckCircle2,
-  Clock,
-  ArrowDownCircle,
-  ArrowUpCircle,
-  IndianRupee,
-  ShieldCheck,
-  TrendingUp,
-  Gift,
-} from 'lucide-react'
+import { Wallet, Loader as Loader2, CircleCheck as CheckCircle2, Clock, CircleArrowDown as ArrowDownCircle, CircleArrowUp as ArrowUpCircle, IndianRupee, ShieldCheck, TrendingUp, Gift } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'

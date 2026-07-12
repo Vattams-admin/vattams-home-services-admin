@@ -1,17 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import {
-  Mail,
-  Plus,
-  Pencil,
-  Trash2,
-  Loader2,
-  Search,
-  AlertCircle,
-  Eye,
-  MousePointerClick,
-  Send,
-  FileText,
-} from 'lucide-react'
+import { Mail, Plus, Pencil, Trash2, Loader as Loader2, Search, CircleAlert as AlertCircle, Eye, MousePointerClick, Send, FileText } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'

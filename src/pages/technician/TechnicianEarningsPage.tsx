@@ -1,14 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import {
-  TrendingUp,
-  Loader2,
-  CheckCircle2,
-  Calendar,
-  Wrench,
-  IndianRupee,
-  BarChart3,
-  Wallet,
-} from 'lucide-react'
+import { TrendingUp, Loader as Loader2, CircleCheck as CheckCircle2, Calendar, Wrench, IndianRupee, BarChart3, Wallet } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Select } from '@/components/ui/input'

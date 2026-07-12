@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Star, Loader2, Send, CheckCircle2, Wrench } from 'lucide-react'
+import { Star, Loader as Loader2, Send, CircleCheck as CheckCircle2, Wrench } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea, Select } from '@/components/ui/input'

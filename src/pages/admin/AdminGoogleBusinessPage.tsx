@@ -1,15 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import {
-  Building2,
-  Save,
-  Loader2,
-  MapPin,
-  Clock,
-  Phone,
-  Globe,
-  Star,
-  ExternalLink,
-} from 'lucide-react'
+import { Building2, Save, Loader as Loader2, MapPin, Clock, Phone, Globe, Star, ExternalLink } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input, Textarea } from '@/components/ui/input'

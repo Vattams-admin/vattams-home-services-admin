@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, Outlet, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Users, Wrench, CalendarCheck, MapPin, CreditCard, BarChart3, Settings, Bell, Ticket, FileText, Gift, Megaphone, Bot, Building2, Mail, FileEdit, Star, TrendingUp, LogOut, Menu, X, User, Wallet, Briefcase, MapPinned, DollarSign, MessageSquare } from 'lucide-react'
+import { LayoutDashboard, Users, Wrench, CalendarCheck, MapPin, CreditCard, BarChart3, Settings, Bell, Ticket, FileText, Gift, Megaphone, Bot, Building2, Mail, File as FileEdit, Star, TrendingUp, LogOut, Menu, X, User, Wallet, Briefcase, MapPinned, DollarSign, MessageSquare } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { cn } from '@/lib/utils'
 

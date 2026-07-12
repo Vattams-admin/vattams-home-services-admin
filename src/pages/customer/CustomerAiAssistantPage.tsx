@@ -1,12 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import {
-  Sparkles,
-  Send,
-  Loader2,
-  Bot,
-  User,
-  Trash2,
-} from 'lucide-react'
+import { Sparkles, Send, Loader as Loader2, Bot, User, Trash2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input, Select } from '@/components/ui/input'

@@ -1,13 +1,5 @@
 import { useEffect, useState } from 'react'
-import {
-  MapPin,
-  Loader2,
-  Plus,
-  Trash2,
-  CheckCircle2,
-  XCircle,
-  Building2,
-} from 'lucide-react'
+import { MapPin, Loader as Loader2, Plus, Trash2, CircleCheck as CheckCircle2, Circle as XCircle, Building2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'

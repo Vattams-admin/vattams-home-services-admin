@@ -1,17 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import {
-  CreditCard,
-  Eye,
-  Loader2,
-  Search,
-  Filter,
-  IndianRupee,
-  FileText,
-  Download,
-  CheckCircle2,
-  Clock,
-  XCircle,
-} from 'lucide-react'
+import { CreditCard, Eye, Loader as Loader2, Search, Filter, IndianRupee, FileText, Download, CircleCheck as CheckCircle2, Clock, Circle as XCircle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'

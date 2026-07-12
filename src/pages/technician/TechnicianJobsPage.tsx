@@ -1,18 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import {
-  Wrench,
-  Calendar,
-  Clock,
-  MapPin,
-  Loader2,
-  Search,
-  Filter,
-  Check,
-  X,
-  ArrowRight,
-  User,
-  FileText,
-} from 'lucide-react'
+import { Wrench, Calendar, Clock, MapPin, Loader as Loader2, Search, Filter, Check, X, ArrowRight, User, FileText } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'

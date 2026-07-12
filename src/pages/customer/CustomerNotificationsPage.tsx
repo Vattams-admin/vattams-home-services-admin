@@ -1,13 +1,5 @@
 import { useEffect, useState } from 'react'
-import {
-  Bell,
-  CheckCheck,
-  Loader2,
-  Info,
-  CheckCircle2,
-  AlertCircle,
-  Filter,
-} from 'lucide-react'
+import { Bell, CheckCheck, Loader as Loader2, Info, CircleCheck as CheckCircle2, CircleAlert as AlertCircle, Filter } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'

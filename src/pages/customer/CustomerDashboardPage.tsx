@@ -1,20 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import {
-  CalendarCheck,
-  CheckCircle2,
-  Clock,
-  CreditCard,
-  Plus,
-  MapPin,
-  Search,
-  Sparkles,
-  Users,
-  Loader2,
-  Wrench,
-  Bell,
-  TrendingUp,
-} from 'lucide-react'
+import { CalendarCheck, CircleCheck as CheckCircle2, Clock, CreditCard, Plus, MapPin, Search, Sparkles, Users, Loader as Loader2, Wrench, Bell, TrendingUp } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'

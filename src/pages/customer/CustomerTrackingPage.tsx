@@ -1,16 +1,5 @@
 import { useEffect, useState } from 'react'
-import {
-  MapPin,
-  Clock,
-  User,
-  Phone,
-  Loader2,
-  CheckCircle2,
-  Circle,
-  Navigation,
-  Calendar,
-  Wrench,
-} from 'lucide-react'
+import { MapPin, Clock, User, Phone, Loader as Loader2, CircleCheck as CheckCircle2, Circle, Navigation, Calendar, Wrench } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'

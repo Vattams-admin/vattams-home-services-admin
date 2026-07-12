@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react'
-import { Loader2, AlertTriangle, Home } from 'lucide-react'
+import { Loader as Loader2, TriangleAlert as AlertTriangle, Chrome as Home } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 export function LoadingScreen() {

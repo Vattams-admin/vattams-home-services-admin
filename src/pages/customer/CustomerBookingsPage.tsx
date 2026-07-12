@@ -1,17 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import {
-  Calendar,
-  Clock,
-  MapPin,
-  Wrench,
-  Loader2,
-  Search,
-  Filter,
-  Plus,
-  ChevronRight,
-  User,
-} from 'lucide-react'
+import { Calendar, Clock, MapPin, Wrench, Loader as Loader2, Search, Filter, Plus, ChevronRight, User } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'

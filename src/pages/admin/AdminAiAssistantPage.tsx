@@ -1,15 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import {
-  Bot,
-  Send,
-  Loader2,
-  Sparkles,
-  Brain,
-  TrendingUp,
-  AlertTriangle,
-  Lightbulb,
-  Trash2,
-} from 'lucide-react'
+import { Bot, Send, Loader as Loader2, Sparkles, Brain, TrendingUp, TriangleAlert as AlertTriangle, Lightbulb, Trash2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'

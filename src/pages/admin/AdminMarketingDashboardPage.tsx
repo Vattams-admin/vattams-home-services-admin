@@ -1,16 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import {
-  TrendingUp,
-  Eye,
-  MousePointerClick,
-  Mail,
-  Star,
-  Users,
-  Megaphone,
-  Globe,
-  Loader2,
-  ArrowUpRight,
-} from 'lucide-react'
+import { TrendingUp, Eye, MousePointerClick, Mail, Star, Users, Megaphone, Globe, Loader as Loader2, ArrowUpRight } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import {

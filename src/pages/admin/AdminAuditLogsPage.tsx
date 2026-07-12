@@ -1,11 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import {
-  ScrollText,
-  Loader2,
-  Search,
-  User,
-  FileText,
-} from 'lucide-react'
+import { ScrollText, Loader as Loader2, Search, User, FileText } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input, Select } from '@/components/ui/input'

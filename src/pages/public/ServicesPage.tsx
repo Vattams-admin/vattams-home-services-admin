@@ -1,21 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import {
-  Snowflake,
-  Droplets,
-  Zap,
-  Sparkles,
-  Bug,
-  PaintRoller,
-  Hammer,
-  Wrench,
-  ArrowRight,
-  CheckCircle2,
-  Phone,
-  Clock,
-  Star,
-  ShieldCheck,
-} from 'lucide-react'
+import { Snowflake, Droplets, Zap, Sparkles, Bug, PaintRoller, Hammer, Wrench, ArrowRight, CircleCheck as CheckCircle2, Phone, Clock, Star, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'

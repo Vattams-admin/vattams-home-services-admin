@@ -1,17 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import {
-  Wrench,
-  MapPin,
-  Calendar,
-  Clock,
-  FileText,
-  Loader2,
-  Check,
-  ChevronRight,
-  ChevronLeft,
-  IndianRupee,
-} from 'lucide-react'
+import { Wrench, MapPin, Calendar, Clock, FileText, Loader as Loader2, Check, ChevronRight, ChevronLeft, IndianRupee } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input, Textarea, Select } from '@/components/ui/input'

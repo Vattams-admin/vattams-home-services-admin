@@ -1,14 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import {
-  MapPin,
-  Plus,
-  Pencil,
-  Trash2,
-  Loader2,
-  Search,
-  X,
-  AlertCircle,
-} from 'lucide-react'
+import { MapPin, Plus, Pencil, Trash2, Loader as Loader2, Search, X, CircleAlert as AlertCircle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'

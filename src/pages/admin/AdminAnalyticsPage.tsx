@@ -1,14 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import {
-  BarChart3,
-  Loader2,
-  Eye,
-  MousePointerClick,
-  TrendingUp,
-  Users,
-  Globe,
-  Activity,
-} from 'lucide-react'
+import { BarChart3, Loader as Loader2, Eye, MousePointerClick, TrendingUp, Users, Globe, Activity } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input, Select } from '@/components/ui/input'

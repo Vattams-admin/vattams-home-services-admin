@@ -1,27 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import {
-  Wrench,
-  Snowflake,
-  Droplets,
-  Zap,
-  Sparkles,
-  Bug,
-  PaintRoller,
-  Hammer,
-  ShieldCheck,
-  Clock,
-  Star,
-  Phone,
-  MapPin,
-  Users,
-  CheckCircle2,
-  ArrowRight,
-  Quote,
-  Award,
-  Headphones,
-  Wallet,
-} from 'lucide-react'
+import { Wrench, Snowflake, Droplets, Zap, Sparkles, Bug, PaintRoller, Hammer, ShieldCheck, Clock, Star, Phone, MapPin, Users, CircleCheck as CheckCircle2, ArrowRight, Quote, Award, Headphones, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'

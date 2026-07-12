@@ -1,17 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import {
-  StickyNote,
-  CalendarClock,
-  AlertTriangle,
-  Bell,
-  Loader2,
-  Plus,
-  Search,
-  User,
-  Clock,
-  CheckCircle2,
-  XCircle,
-} from 'lucide-react'
+import { StickyNote, CalendarClock, TriangleAlert as AlertTriangle, Bell, Loader as Loader2, Plus, Search, User, Clock, CircleCheck as CheckCircle2, Circle as XCircle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'

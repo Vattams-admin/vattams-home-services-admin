@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { Loader2, Mail, Home, AlertCircle, CheckCircle2, ArrowLeft } from 'lucide-react';
+import { Loader as Loader2, Mail, Chrome as Home, CircleAlert as AlertCircle, CircleCheck as CheckCircle2, ArrowLeft } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';

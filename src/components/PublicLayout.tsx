@@ -1,6 +1,6 @@
 import { type ReactNode, useState } from 'react'
 import { Link, Outlet } from 'react-router-dom'
-import { Menu, X, Facebook, Instagram, Linkedin, Twitter, Send, PlayCircle, MessageCircle, Phone, Mail, MapPin } from 'lucide-react'
+import { Menu, X, Facebook, Instagram, Linkedin, Twitter, Send, CirclePlay as PlayCircle, MessageCircle, Phone, Mail, MapPin } from 'lucide-react'
 import { Logo } from '@/components/Logo'
 import { useI18n } from '@/lib/i18n'
 import { CONTACT } from '@/lib/constants'

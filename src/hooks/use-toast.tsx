@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, type ReactNode } from 'react'
-import { CheckCircle2, XCircle, AlertCircle, Info, X } from 'lucide-react'
+import { CircleCheck as CheckCircle2, Circle as XCircle, CircleAlert as AlertCircle, Info, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 type Variant = 'success' | 'error' | 'warning' | 'info'

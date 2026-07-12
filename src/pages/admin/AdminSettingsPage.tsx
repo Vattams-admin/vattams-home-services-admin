@@ -1,18 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import {
-  Settings,
-  Save,
-  Loader2,
-  Building2,
-  Phone,
-  MessageCircle,
-  Share2,
-  Clock,
-  CreditCard,
-  FileText,
-  Globe,
-  Palette,
-} from 'lucide-react'
+import { Settings, Save, Loader as Loader2, Building2, Phone, MessageCircle, Share2, Clock, CreditCard, FileText, Globe, Palette } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input, Textarea } from '@/components/ui/input'

@@ -1,13 +1,5 @@
 import { useEffect, useState } from 'react'
-import {
-  CreditCard,
-  Download,
-  Loader2,
-  FileText,
-  CheckCircle2,
-  Clock,
-  AlertCircle,
-} from 'lucide-react'
+import { CreditCard, Download, Loader as Loader2, FileText, CircleCheck as CheckCircle2, Clock, CircleAlert as AlertCircle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'

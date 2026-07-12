@@ -1,15 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import {
-  Bell,
-  Send,
-  Loader2,
-  Search,
-  Users,
-  Megaphone,
-  CheckCircle2,
-  Clock,
-  Mail,
-} from 'lucide-react'
+import { Bell, Send, Loader as Loader2, Search, Users, Megaphone, CircleCheck as CheckCircle2, Clock, Mail } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
