@@ -1,11 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import {
-  LayoutDashboard, Calendar, Users, Wrench, MapPin, CreditCard,
-  BarChart3, Settings, Bell, Tag, History, ClipboardList, Home,
-  Wallet, User, Menu, X, LogOut, FileText, BadgeCheck,
-  UserCircle, Gift, Megaphone, Bot, Star, Mail, Globe,
-} from 'lucide-react'
+import { LayoutDashboard, Calendar, Users, Wrench, MapPin, CreditCard, BarChart3, Settings, Bell, Tag, History, ClipboardList, Chrome as Home, Wallet, User, Menu, X, LogOut, FileText, BadgeCheck } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { Logo } from '@/components/Logo'
@@ -17,23 +12,13 @@ const adminNav: NavItem[] = [
   { to: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/admin/verification', label: 'Verification', icon: BadgeCheck },
   { to: '/admin/bookings', label: 'Bookings', icon: Calendar },
-  { to: '/admin/crm', label: 'CRM', icon: UserCircle },
   { to: '/admin/customers', label: 'Customers', icon: Users },
   { to: '/admin/technicians', label: 'Technicians', icon: Wrench },
   { to: '/admin/service-areas', label: 'Service Areas', icon: MapPin },
   { to: '/admin/payments', label: 'Payments', icon: CreditCard },
   { to: '/admin/revenue', label: 'Revenue', icon: BarChart3 },
   { to: '/admin/reports', label: 'Reports', icon: FileText },
-  { to: '/admin/coupons', label: 'Coupons & Offers', icon: Tag },
-  { to: '/admin/referrals', label: 'Referrals', icon: Gift },
-  { to: '/admin/marketing', label: 'Marketing', icon: Megaphone },
-  { to: '/admin/marketing-dashboard', label: 'Marketing Dashboard', icon: BarChart3 },
-  { to: '/admin/google-business', label: 'Google Business', icon: Globe },
-  { to: '/admin/analytics', label: 'Analytics & Pixel', icon: BarChart3 },
-  { to: '/admin/email-marketing', label: 'Email Marketing', icon: Mail },
-  { to: '/admin/blog', label: 'Blog CMS', icon: FileText },
-  { to: '/admin/reviews', label: 'Reviews', icon: Star },
-  { to: '/admin/ai-assistant', label: 'AI Assistant', icon: Bot },
+  { to: '/admin/coupons', label: 'Coupons', icon: Tag },
   { to: '/admin/audit-logs', label: 'Audit Logs', icon: History },
   { to: '/admin/notifications', label: 'Notifications', icon: Bell },
   { to: '/admin/settings', label: 'Settings', icon: Settings },
@@ -45,7 +30,6 @@ const technicianNav: NavItem[] = [
   { to: '/technician/wallet', label: 'Wallet', icon: Wallet },
   { to: '/technician/areas', label: 'Areas', icon: MapPin },
   { to: '/technician/earnings', label: 'Earnings', icon: CreditCard },
-  { to: '/technician/referrals', label: 'Referrals', icon: Gift },
   { to: '/technician/notifications', label: 'Notifications', icon: Bell },
   { to: '/technician/profile', label: 'Profile', icon: User },
 ]
@@ -55,8 +39,6 @@ const customerNav: NavItem[] = [
   { to: '/customer/booking', label: 'Book Service', icon: Calendar },
   { to: '/customer/bookings', label: 'My Bookings', icon: ClipboardList },
   { to: '/customer/payments', label: 'Payments', icon: CreditCard },
-  { to: '/customer/referrals', label: 'Referrals', icon: Gift },
-  { to: '/customer/ai-assistant', label: 'AI Assistant', icon: Bot },
   { to: '/customer/notifications', label: 'Notifications', icon: Bell },
   { to: '/customer/profile', label: 'Profile', icon: User },
 ]
@@ -75,7 +57,9 @@ export function DashboardLayout() {
       setUnreadCount(count || 0)
     }
     load()
-    const ch = supabase.channel('notif-count').on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${profile.id}` }, load).subscribe()
+    const ch = supabase.channel('notif-count').on('postgres_changes',
+      { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${profile.id}` }, load,
+    ).subscribe()
     return () => { supabase.removeChannel(ch) }
   }, [profile])
 

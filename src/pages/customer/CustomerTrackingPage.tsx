@@ -1,98 +1,104 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
-import { CheckCircle, Circle, User, Phone, MessageCircle, ArrowLeft } from 'lucide-react'
+import { Link, useParams } from 'react-router-dom'
+import { CircleCheck as CheckCircle, Circle, MapPin, User, Phone, MessageCircle, Calendar, IndianRupee } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Booking, Profile } from '@/lib/supabase'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { LoadingScreen } from '@/components/LoadingScreen'
-import { formatCurrency, formatDate, BOOKING_STATUS_COLORS } from '@/lib/utils'
+import { cn, formatDate, formatCurrency, BOOKING_STATUS_COLORS, sanitizeInput } from '@/lib/utils'
 import { statusTimeline } from '@/lib/notifications'
 import { whatsappLink } from '@/lib/constants'
+
+type BookingWithTech = Booking & { technician: Profile | null }
 
 export function CustomerTrackingPage() {
   const { bookingId } = useParams<{ bookingId: string }>()
   const [loading, setLoading] = useState(true)
-  const [booking, setBooking] = useState<Booking | null>(null)
-  const [technician, setTechnician] = useState<Profile | null>(null)
+  const [booking, setBooking] = useState<BookingWithTech | null>(null)
 
   useEffect(() => {
+    if (!bookingId) return
     let mounted = true;
     (async () => {
-      if (!bookingId) return
-      const { data: bk } = await supabase.from('bookings').select('*').eq('id', bookingId).maybeSingle()
+      const { data } = await supabase.from('bookings').select('*, technician:technician_id(*)').eq('id', bookingId).maybeSingle()
       if (!mounted) return
-      const b = bk as Booking
-      setBooking(b)
-      if (b?.technician_id) {
-        const { data: tech } = await supabase.from('profiles').select('*').eq('id', b.technician_id).maybeSingle()
-        if (mounted) setTechnician(tech as Profile)
-      }
-      if (mounted) setLoading(false)
+      setBooking(data as BookingWithTech | null)
+      setLoading(false)
     })()
     return () => { mounted = false }
   }, [bookingId])
 
-  if (loading) return <LoadingScreen message="Loading tracking info..." />
-  if (!booking) return <div className="py-12 text-center"><p className="text-gray-500">Booking not found.</p><Link to="/customer/bookings"><Button className="mt-4">Back to Bookings</Button></Link></div>
+  if (loading) return <LoadingScreen message="Loading booking details..." />
 
-  const timeline = statusTimeline(booking.status)
+  const timeline = statusTimeline(booking?.status)
+  const tech = booking?.technician
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8">
-      <Link to="/customer/bookings" className="mb-4 inline-flex items-center gap-1 text-sm text-gray-600 hover:text-blue-600"><ArrowLeft className="h-4 w-4" /> Back to Bookings</Link>
+    <div className="mx-auto max-w-3xl space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900">Track Booking</h1>
+        <Link to="/customer/bookings"><Button variant="outline">Back to Bookings</Button></Link>
+      </div>
 
-      <Card className="mb-6">
-        <CardHeader><CardTitle>Booking #{booking.booking_number}</CardTitle></CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div><p className="text-gray-500">Service</p><p className="font-medium">{booking.service_name}</p></div>
-            <div><p className="text-gray-500">Status</p><Badge color={BOOKING_STATUS_COLORS[booking.status]}>{booking.status.replace(/_/g, ' ')}</Badge></div>
-            <div><p className="text-gray-500">Scheduled Date</p><p className="font-medium">{formatDate(booking.scheduled_date)} {booking.scheduled_time && `at ${booking.scheduled_time}`}</p></div>
-            <div><p className="text-gray-500">Amount</p><p className="font-medium">{formatCurrency(booking.amount)}</p></div>
-            <div className="col-span-2"><p className="text-gray-500">Address</p><p className="font-medium">{booking.address}, {booking.city}, {booking.district} - {booking.pincode}</p></div>
-          </div>
-        </CardContent>
-      </Card>
+      {!booking ? (
+        <Card><CardContent className="py-12 text-center"><p className="text-gray-500">Booking not found.</p></CardContent></Card>
+      ) : (
+        <>
+          <Card>
+            <CardHeader><CardTitle className="flex items-center justify-between"><span className="font-mono text-base">#{booking.booking_number}</span><Badge color={BOOKING_STATUS_COLORS[booking.status]}>{booking.status.replace(/_/g, ' ')}</Badge></CardTitle></CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <div className="flex items-center gap-2"><Calendar className="h-4 w-4 text-gray-400" /><span>{formatDate(booking.scheduled_date)}{booking.scheduled_time ? ` at ${booking.scheduled_time}` : ''}</span></div>
+              <div className="flex items-start gap-2"><MapPin className="mt-0.5 h-4 w-4 text-gray-400" /><span>{sanitizeInput(booking.address)}, {booking.city}, {booking.district} - {booking.pincode}</span></div>
+              <div className="flex items-center gap-2"><IndianRupee className="h-4 w-4 text-gray-400" /><span className="font-semibold">{formatCurrency(booking.amount)}</span></div>
+              <div><p className="text-gray-500">Service</p><p className="font-medium">{booking.service_name}</p></div>
+              {booking.customer_notes && <div><p className="text-gray-500">Notes</p><p className="font-medium">{sanitizeInput(booking.customer_notes)}</p></div>}
+            </CardContent>
+          </Card>
 
-      <Card className="mb-6">
-        <CardHeader><CardTitle>Order Tracking</CardTitle></CardHeader>
-        <CardContent>
-          {timeline.length > 0 ? (
-            <div className="space-y-4">
-              {timeline.map((step, i) => (
-                <div key={i} className="flex items-start gap-3">
-                  {step.done ? <CheckCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-green-600" /> : <Circle className="mt-0.5 h-5 w-5 flex-shrink-0 text-gray-300" />}
-                  <div>
-                    <p className={`font-medium ${step.done ? 'text-gray-900' : 'text-gray-400'}`}>{step.label}</p>
-                    {step.done && i === timeline.length - 1 && <p className="text-xs text-green-600">Current status</p>}
-                  </div>
+          {booking.status !== 'cancelled' && timeline.length > 0 && (
+            <Card>
+              <CardHeader><CardTitle>Status Timeline</CardTitle></CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {timeline.map((step, i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      {step.done ? <CheckCircle className="h-5 w-5 text-green-600" /> : <Circle className="h-5 w-5 text-gray-300" />}
+                      <span className={cn('text-sm', step.done ? 'font-medium text-gray-900' : 'text-gray-400')}>{step.label}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          ) : <p className="text-gray-500">Tracking not available for cancelled bookings.</p>}
-        </CardContent>
-      </Card>
+              </CardContent>
+            </Card>
+          )}
 
-      {technician && (
-        <Card>
-          <CardHeader><CardTitle>Technician Details</CardTitle></CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-50"><User className="h-6 w-6 text-blue-600" /></div>
-                <div>
-                  <p className="font-medium text-gray-900">{technician.name}</p>
-                  <p className="flex items-center gap-1 text-sm text-gray-600"><Phone className="h-3.5 w-3.5" /> {technician.mobile}</p>
+          {booking.status === 'cancelled' && (
+            <Card><CardContent className="py-6 text-center"><p className="text-red-600 font-medium">This booking has been cancelled.</p>{booking.cancel_reason && <p className="mt-1 text-sm text-gray-500">Reason: {sanitizeInput(booking.cancel_reason)}</p>}</CardContent></Card>
+          )}
+
+          {tech && (
+            <Card>
+              <CardHeader><CardTitle>Technician Details</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-lg font-bold text-blue-600"><User className="h-6 w-6" /></div>
+                  <div><p className="font-medium text-gray-900">{tech.name}</p><p className="text-sm text-gray-500">{tech.mobile}</p></div>
                 </div>
-              </div>
-              <a href={whatsappLink(technician.mobile, `Hi ${technician.name}, regarding my booking #${booking.booking_number}`)} target="_blank" rel="noopener noreferrer">
-                <Button><MessageCircle className="mr-2 h-4 w-4" /> WhatsApp</Button>
-              </a>
+                <div className="flex gap-2">
+                  <a href={whatsappLink(tech.mobile.startsWith('91') ? tech.mobile : `91${tech.mobile}`, `Hello ${tech.name}, regarding my booking #${booking.booking_number}`)} target="_blank" rel="noreferrer"><Button variant="outline" size="sm"><MessageCircle className="mr-1 h-4 w-4" />WhatsApp</Button></a>
+                  <a href={`tel:+91${tech.mobile}`}><Button variant="outline" size="sm"><Phone className="mr-1 h-4 w-4" />Call</Button></a>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {booking.status === 'completed' && (
+            <div className="flex justify-end">
+              <Link to={`/customer/review/${booking.id}`}><Button>Leave a Review</Button></Link>
             </div>
-          </CardContent>
-        </Card>
+          )}
+        </>
       )}
     </div>
   )

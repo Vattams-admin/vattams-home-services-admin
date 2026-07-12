@@ -1,17 +1,19 @@
 import { useEffect, useState } from 'react'
-import { TrendingUp, Download, Clock, Calendar } from 'lucide-react'
+import { Download, TrendingUp, Calendar, Clock, Loader as Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Invoice, Settings } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
 import { useToast } from '@/hooks/use-toast'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { LoadingScreen } from '@/components/LoadingScreen'
-import { formatCurrency, formatDateTime, formatDate } from '@/lib/utils'
+import { cn, formatDate, formatCurrency } from '@/lib/utils'
 import { generateInvoicePDF } from '@/lib/pdf'
 
-const STATUS_COLORS: Record<string, string> = { paid: 'bg-green-100 text-green-700', pending: 'bg-amber-100 text-amber-700' }
+const statusColors: Record<string, string> = {
+  paid: 'bg-green-100 text-green-700', pending: 'bg-amber-100 text-amber-700', failed: 'bg-red-100 text-red-700',
+}
 
 export function TechnicianEarningsPage() {
   const { profile } = useAuth()
@@ -19,76 +21,88 @@ export function TechnicianEarningsPage() {
   const [loading, setLoading] = useState(true)
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [settings, setSettings] = useState<Settings | null>(null)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  const [stats, setStats] = useState({ total: 0, thisMonth: 0, pending: 0 })
 
   useEffect(() => {
+    if (!profile) return
     let mounted = true;
     (async () => {
-      if (!profile) return
-      const { data: inv } = await supabase.from('invoices').select('*').eq('technician_id', profile.id).order('created_at', { ascending: false })
-      const { data: set } = await supabase.from('settings').select('*').limit(1).maybeSingle()
-      if (mounted) { setInvoices((inv as Invoice[]) || []); setSettings(set as Settings); setLoading(false) }
+      const { data: invs } = await supabase.from('invoices').select('*').eq('technician_id', profile.id).order('created_at', { ascending: false })
+      const { data: settingsData } = await supabase.from('settings').select('*').maybeSingle()
+      if (!mounted) return
+      const invoiceList = (invs || []) as Invoice[]
+      setInvoices(invoiceList)
+      setSettings(settingsData as Settings | null)
+      const paid = invoiceList.filter((i) => i.status === 'paid')
+      const total = paid.reduce((s, i) => s + i.amount, 0)
+      const now = new Date()
+      const thisMonth = paid.filter((i) => { const d = new Date(i.created_at); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear() }).reduce((s, i) => s + i.amount, 0)
+      const pending = invoiceList.filter((i) => i.status === 'pending').reduce((s, i) => s + i.amount, 0)
+      setStats({ total, thisMonth, pending })
+      setLoading(false)
     })()
     return () => { mounted = false }
   }, [profile])
 
-  const totalEarnings = invoices.filter((i) => i.status === 'paid').reduce((s, i) => s + i.amount, 0)
-  const now = new Date()
-  const thisMonth = invoices.filter((i) => { const d = new Date(i.created_at); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear() && i.status === 'paid' }).reduce((s, i) => s + i.amount, 0)
-  const pendingPayments = invoices.filter((i) => i.status !== 'paid').reduce((s, i) => s + i.amount, 0)
-
   const handleDownload = async (inv: Invoice) => {
-    try { await generateInvoicePDF(inv, null, profile, profile, settings); toast('Invoice downloaded', 'success') }
+    setDownloadingId(inv.id)
+    try { await generateInvoicePDF(inv, null, null, profile, settings); toast('Invoice downloaded', 'success') }
     catch { toast('Failed to download invoice', 'error') }
+    setDownloadingId(null)
   }
 
   if (loading) return <LoadingScreen message="Loading earnings..." />
+  if (!profile) return null
 
   const statCards = [
-    { label: 'Total Earnings', value: formatCurrency(totalEarnings), icon: TrendingUp, color: 'text-green-600 bg-green-50' },
-    { label: 'This Month', value: formatCurrency(thisMonth), icon: Calendar, color: 'text-blue-600 bg-blue-50' },
-    { label: 'Pending Payments', value: formatCurrency(pendingPayments), icon: Clock, color: 'text-amber-600 bg-amber-50' },
+    { label: 'Total Earnings', value: formatCurrency(stats.total), icon: TrendingUp, color: 'text-green-600 bg-green-100' },
+    { label: 'This Month', value: formatCurrency(stats.thisMonth), icon: Calendar, color: 'text-blue-600 bg-blue-100' },
+    { label: 'Pending Payments', value: formatCurrency(stats.pending), icon: Clock, color: 'text-amber-600 bg-amber-100' },
   ]
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8">
-      <h1 className="mb-6 text-2xl font-bold text-gray-900">Earnings</h1>
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold text-gray-900">Earnings</h1>
 
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {statCards.map((s) => { const Icon = s.icon; return (
+      <div className="grid gap-4 sm:grid-cols-3">
+        {statCards.map((s) => (
           <Card key={s.label}>
-            <CardContent className="flex items-center gap-4 p-4">
-              <div className={`rounded-lg p-3 ${s.color}`}><Icon className="h-6 w-6" /></div>
-              <div><p className="text-sm text-gray-600">{s.label}</p><p className="text-xl font-bold text-gray-900">{s.value}</p></div>
+            <CardContent className="flex items-center gap-4 py-4">
+              <div className={cn('flex h-12 w-12 items-center justify-center rounded-lg', s.color)}><s.icon className="h-6 w-6" /></div>
+              <div><p className="text-2xl font-bold text-gray-900">{s.value}</p><p className="text-sm text-gray-500">{s.label}</p></div>
             </CardContent>
           </Card>
-        )})}
+        ))}
       </div>
 
-      <Card>
-        <CardHeader><CardTitle>Invoice History</CardTitle></CardHeader>
-        <CardContent>
-          {invoices.length === 0 ? (
-            <p className="py-8 text-center text-gray-500">No invoices yet.</p>
-          ) : (
-            <div className="space-y-3">
-              {invoices.map((inv) => (
-                <div key={inv.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-100 p-3 hover:bg-gray-50">
-                  <div>
-                    <p className="font-medium text-gray-900">#{inv.invoice_number}</p>
-                    <p className="text-sm text-gray-500">{inv.service_name}</p>
-                    <p className="text-xs text-gray-400">{formatDate(inv.created_at)}</p>
+      {invoices.length === 0 ? (
+        <Card><CardContent className="py-12 text-center"><p className="text-gray-500">No invoices found.</p><p className="mt-1 text-sm text-gray-400">Your earnings will appear here once you complete jobs.</p></CardContent></Card>
+      ) : (
+        <div className="space-y-3">
+          {invoices.map((inv) => (
+            <Card key={inv.id}>
+              <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-xs text-gray-400">#{inv.invoice_number}</span>
+                    <p className="font-medium text-gray-900">{inv.service_name}</p>
+                    <Badge color={statusColors[inv.status] || 'bg-gray-100 text-gray-700'}>{inv.status}</Badge>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="font-bold text-gray-900">{formatCurrency(inv.amount)}</span>
-                    <Badge color={STATUS_COLORS[inv.status] || 'bg-gray-100 text-gray-700'}>{inv.status}</Badge>
-                    <Button size="sm" variant="outline" onClick={() => handleDownload(inv)}><Download className="mr-1 h-3.5 w-3.5" /> PDF</Button>
+                  <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500">
+                    <span className="font-semibold text-gray-700">{formatCurrency(inv.amount)}</span>
+                    <span>Created: {formatDate(inv.created_at)}</span>
+                    {inv.paid_at && <span>Paid: {formatDate(inv.paid_at)}</span>}
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                <Button size="sm" variant="outline" onClick={() => handleDownload(inv)} disabled={downloadingId === inv.id}>
+                  {downloadingId === inv.id ? <><Loader2 className="mr-1 h-4 w-4 animate-spin" />Generating...</> : <><Download className="mr-1 h-4 w-4" />Download PDF</>}
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

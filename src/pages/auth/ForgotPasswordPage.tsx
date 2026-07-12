@@ -1,13 +1,13 @@
-import { useState } from 'react'
+import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { Mail, ArrowLeft, Send } from 'lucide-react'
+import { Loader as Loader2, MailCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { supabase } from '@/lib/supabase'
 import { useToast } from '@/hooks/use-toast'
-import type { FormEvent } from 'react'
+import { sanitizeInput } from '@/lib/utils'
 
 export function ForgotPasswordPage() {
   const { toast } = useToast()
@@ -18,9 +18,7 @@ export function ForgotPasswordPage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/login`,
-    })
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim())
     setLoading(false)
     if (error) {
       toast(error.message, 'error')
@@ -31,45 +29,45 @@ export function ForgotPasswordPage() {
   }
 
   return (
-    <div className="flex min-h-[70vh] items-center justify-center px-4 py-12">
+    <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center px-4 py-12">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-center">Forgot Password</CardTitle>
+          <p className="text-center text-sm text-gray-500">
+            Enter your email and we&apos;ll send you a reset link.
+          </p>
         </CardHeader>
         <CardContent>
           {sent ? (
-            <div className="text-center">
-              <p className="mb-4 text-gray-600">
-                We've sent a password reset link to <span className="font-semibold text-gray-900">{email}</span>.
-                Please check your inbox and follow the instructions to reset your password.
-              </p>
-              <Link to="/login">
-                <Button variant="outline" className="w-full">
-                  <ArrowLeft className="mr-2 h-4 w-4" /> Back to Login
-                </Button>
+            <div className="flex flex-col items-center gap-4 py-4 text-center">
+              <MailCheck className="h-12 w-12 text-green-600" />
+              <div>
+                <p className="font-medium text-gray-900">Check your email</p>
+                <p className="mt-1 text-sm text-gray-600">
+                  We&apos;ve sent a password reset link to <strong>{email}</strong>.
+                  Please check your inbox and follow the instructions.
+                </p>
+              </div>
+              <Link to="/login" className="mt-2">
+                <Button variant="outline">Back to Login</Button>
               </Link>
             </div>
           ) : (
             <>
-              <p className="mb-6 text-sm text-gray-600">
-                Enter your email address and we'll send you a link to reset your password.
-              </p>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <Label htmlFor="email">Email</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                    <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" className="pl-10" />
-                  </div>
+                  <Input id="email" type="email" required value={email}
+                    onChange={(e) => setEmail(sanitizeInput(e.target.value))}
+                    placeholder="you@example.com" />
                 </div>
-                <Button type="submit" disabled={loading} className="w-full">
-                  {loading ? 'Sending...' : <><Send className="mr-2 h-4 w-4" /> Send Reset Link</>}
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Sending...</> : 'Send Reset Link'}
                 </Button>
               </form>
-              <div className="mt-4 text-center text-sm">
-                <Link to="/login" className="text-gray-500 hover:text-blue-600">
-                  <span className="inline-flex items-center"><ArrowLeft className="mr-1 h-3 w-3" /> Back to Login</span>
-                </Link>
+              <div className="mt-4 text-center text-sm text-gray-500">
+                Remembered your password?{' '}
+                <Link to="/login" className="text-blue-600 hover:text-blue-700">Sign in</Link>
               </div>
             </>
           )}
