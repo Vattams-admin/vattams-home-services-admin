@@ -1,139 +1,236 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { Eye, Circle as XCircle } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
-import type { Booking, Profile, BookingStatus } from '@/lib/supabase'
-import { useAuth } from '@/lib/auth'
-import { useToast } from '@/hooks/use-toast'
-import { Button } from '@/components/ui/button'
+import {
+  Calendar,
+  Clock,
+  MapPin,
+  Wrench,
+  Loader2,
+  Search,
+  Filter,
+  Plus,
+  ChevronRight,
+  User,
+} from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Modal } from '@/components/ui/modal'
-import { LoadingScreen } from '@/components/LoadingScreen'
-import { cn, formatDate, formatCurrency, BOOKING_STATUS_COLORS, sanitizeInput } from '@/lib/utils'
-import { createNotification, createAuditLog } from '@/lib/notifications'
+import { Input, Select } from '@/components/ui/input'
+import { useAuth } from '@/lib/auth'
+import { supabase, type Booking, type Profile } from '@/lib/supabase'
+import { cn, formatDate, BOOKING_STATUS_COLORS } from '@/lib/utils'
 
-type BookingWithTech = Booking & { technician: Profile | null }
-type Tab = 'all' | 'active' | 'completed' | 'cancelled'
-
-const tabs: { key: Tab; label: string }[] = [
-  { key: 'all', label: 'All' }, { key: 'active', label: 'Active' },
-  { key: 'completed', label: 'Completed' }, { key: 'cancelled', label: 'Cancelled' },
+const STATUS_FILTERS = [
+  { value: 'all', label: 'All Bookings' },
+  { value: 'active', label: 'Active' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'cancelled', label: 'Cancelled' },
 ]
-const activeStatuses: BookingStatus[] = ['created', 'confirmed', 'assigned', 'accepted', 'on_the_way', 'arrived', 'work_started']
-const cancellableStatuses = ['created', 'confirmed', 'assigned']
 
-export function CustomerBookingsPage() {
-  const { profile } = useAuth()
-  const { toast } = useToast()
+const ACTIVE_STATUSES = ['created', 'confirmed', 'assigned', 'accepted', 'on_the_way', 'arrived', 'work_started']
+
+export default function CustomerBookingsPage() {
+  const { profile, session } = useAuth()
+
+  const [bookings, setBookings] = useState<Booking[]>([])
+  const [technicians, setTechnicians] = useState<Record<string, Profile>>({})
   const [loading, setLoading] = useState(true)
-  const [bookings, setBookings] = useState<BookingWithTech[]>([])
-  const [tab, setTab] = useState<Tab>('all')
-  const [selected, setSelected] = useState<BookingWithTech | null>(null)
-  const [cancelling, setCancelling] = useState(false)
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [search, setSearch] = useState('')
+
+  const userId = profile?.id || session?.user?.id
 
   useEffect(() => {
-    if (!profile) return
-    let mounted = true;
-    (async () => {
-      const { data } = await supabase.from('bookings').select('*, technician:technician_id(*)').eq('customer_id', profile.id).order('created_at', { ascending: false })
-      if (!mounted) return
-      setBookings((data || []) as BookingWithTech[])
-      setLoading(false)
-    })()
-    return () => { mounted = false }
-  }, [profile])
+    if (!userId) return
+    let cancelled = false
+    async function load() {
+      try {
+        const { data, error } = await supabase
+          .from('bookings')
+          .select('*')
+          .eq('customer_id', userId)
+          .order('created_at', { ascending: false })
+        if (cancelled) return
+        if (error) throw error
+        const allBookings = (data as Booking[]) || []
+        setBookings(allBookings)
 
-  const filtered = bookings.filter((b) => {
-    if (tab === 'all') return true
-    if (tab === 'active') return activeStatuses.includes(b.status)
-    if (tab === 'completed') return b.status === 'completed'
-    if (tab === 'cancelled') return b.status === 'cancelled'
-    return true
-  })
+        // Fetch technician profiles for assigned bookings
+        const techIds = Array.from(
+          new Set(allBookings.map((b) => b.technician_id).filter(Boolean) as string[]),
+        )
+        if (techIds.length > 0) {
+          const { data: techData } = await supabase
+            .from('profiles')
+            .select('*')
+            .in('id', techIds)
+          if (techData) {
+            const map: Record<string, Profile> = {}
+            ;(techData as Profile[]).forEach((t) => {
+              map[t.id] = t
+            })
+            setTechnicians(map)
+          }
+        }
+      } catch {
+        // ignore
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [userId])
 
-  const handleCancel = async () => {
-    if (!selected || !profile) return
-    setCancelling(true)
-    const { error } = await supabase.from('bookings').update({ status: 'cancelled', cancelled_by: 'customer', updated_at: new Date().toISOString() }).eq('id', selected.id)
-    setCancelling(false)
-    if (error) { toast('Failed to cancel booking', 'error'); return }
-    setBookings((prev) => prev.map((b) => b.id === selected.id ? { ...b, status: 'cancelled' } : b))
-    setSelected(null)
-    toast('Booking cancelled successfully', 'success')
-    if (selected.technician_id) await createNotification(selected.technician_id, 'Booking Cancelled', `Booking ${selected.booking_number} has been cancelled by the customer.`, 'booking')
-    await createAuditLog(profile.id, 'booking_cancelled', 'booking', selected.id, `Customer cancelled booking ${selected.booking_number}`)
+  const filteredBookings = useMemo(() => {
+    return bookings.filter((b) => {
+      const matchesSearch =
+        !search ||
+        b.service_name.toLowerCase().includes(search.toLowerCase()) ||
+        b.booking_number.toLowerCase().includes(search.toLowerCase()) ||
+        b.city.toLowerCase().includes(search.toLowerCase())
+      const matchesStatus =
+        statusFilter === 'all' ||
+        (statusFilter === 'active' && ACTIVE_STATUSES.includes(b.status)) ||
+        (statusFilter === 'completed' && b.status === 'completed') ||
+        (statusFilter === 'cancelled' && b.status === 'cancelled')
+      return matchesSearch && matchesStatus
+    })
+  }, [bookings, search, statusFilter])
+
+  if (loading) {
+    return (
+      <div className="flex h-[60vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+      </div>
+    )
   }
-
-  if (loading) return <LoadingScreen message="Loading bookings..." />
-  if (!profile) return null
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">My Bookings</h1>
-
-      <div className="flex gap-2 overflow-x-auto">
-        {tabs.map((t) => (
-          <button key={t.key} onClick={() => setTab(t.key)} className={cn('rounded-md px-4 py-2 text-sm font-medium transition-colors', tab === t.key ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50')}>{t.label}</button>
-        ))}
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">My Bookings</h1>
+          <p className="mt-1 text-sm text-slate-500">View and track all your service bookings.</p>
+        </div>
+        <Link to="/dashboard/book">
+          <Button>
+            <Plus className="mr-1 h-4 w-4" /> Book a Service
+          </Button>
+        </Link>
       </div>
 
-      {filtered.length === 0 ? (
-        <Card><CardContent className="py-12 text-center"><p className="text-gray-500">No bookings found in this category.</p></CardContent></Card>
+      {/* Filters */}
+      <Card>
+        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Input
+              placeholder="Search by service, booking no, or city..."
+              value={search}
+              onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-slate-400" />
+            <Select value={statusFilter} onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setStatusFilter(e.target.value)} className="w-40">
+              {STATUS_FILTERS.map((f) => (
+                <option key={f.value} value={f.value}>
+                  {f.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Bookings List */}
+      {filteredBookings.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <Calendar className="h-12 w-12 text-slate-300" />
+            <p className="mt-3 text-lg font-medium text-slate-700">
+              {bookings.length === 0 ? 'No bookings yet' : 'No bookings match your filters'}
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
+              {bookings.length === 0
+                ? 'Book a service to get started.'
+                : 'Try adjusting your search or filter.'}
+            </p>
+            {bookings.length === 0 && (
+              <Link to="/dashboard/book">
+                <Button className="mt-4">
+                  <Plus className="mr-1 h-4 w-4" /> Book a Service
+                </Button>
+              </Link>
+            )}
+          </CardContent>
+        </Card>
       ) : (
         <div className="space-y-3">
-          {filtered.map((b) => (
-            <Card key={b.id}>
-              <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-xs text-gray-400">#{b.booking_number}</span>
-                    <p className="font-medium text-gray-900">{b.service_name}</p>
-                    <Badge color={BOOKING_STATUS_COLORS[b.status]}>{b.status.replace(/_/g, ' ')}</Badge>
-                  </div>
-                  <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500">
-                    <span>{formatDate(b.scheduled_date)}</span>
-                    <span className="font-semibold text-gray-700">{formatCurrency(b.amount)}</span>
-                    {b.technician && <span>Technician: {b.technician.name}</span>}
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => setSelected(b)}><Eye className="mr-1 h-4 w-4" />Details</Button>
-                  {cancellableStatuses.includes(b.status) && (
-                    <Button size="sm" variant="danger" onClick={() => setSelected(b)}><XCircle className="mr-1 h-4 w-4" />Cancel</Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+          {filteredBookings.map((booking) => {
+            const technician = booking.technician_id ? technicians[booking.technician_id] : null
+            return (
+              <Link key={booking.id} to="/dashboard/tracking">
+                <Card className="transition-shadow hover:shadow-md">
+                  <CardContent className="p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-blue-50">
+                          <Wrench className="h-6 w-6 text-blue-600" />
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <p className="font-semibold text-slate-900">{booking.service_name}</p>
+                            <Badge
+                              className={cn(
+                                'capitalize',
+                                BOOKING_STATUS_COLORS[booking.status] || 'bg-gray-100 text-gray-700',
+                              )}
+                            >
+                              {booking.status.replace(/_/g, ' ')}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-slate-500">#{booking.booking_number}</p>
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="h-3 w-3" /> {formatDate(booking.scheduled_date)}
+                            </span>
+                            {booking.scheduled_time && (
+                              <span className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" /> {booking.scheduled_time}
+                              </span>
+                            )}
+                            <span className="flex items-center gap-1">
+                              <MapPin className="h-3 w-3" /> {booking.city}, {booking.district}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between gap-4 sm:flex-col sm:items-end">
+                        <div className="text-right">
+                          <p className="text-xs text-slate-500">Technician</p>
+                          {technician ? (
+                            <p className="flex items-center gap-1 text-sm font-medium text-slate-700">
+                              <User className="h-3 w-3" /> {technician.name}
+                            </p>
+                          ) : (
+                            <p className="text-sm text-slate-400">Not assigned</p>
+                          )}
+                        </div>
+                        <ChevronRight className="h-5 w-5 text-slate-400" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            )
+          })}
         </div>
       )}
-
-      <Modal open={!!selected} onClose={() => setSelected(null)} title={`Booking #${selected?.booking_number || ''}`}>
-        {selected && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div><p className="text-gray-500">Service</p><p className="font-medium">{selected.service_name}</p></div>
-              <div><p className="text-gray-500">Status</p><Badge color={BOOKING_STATUS_COLORS[selected.status]}>{selected.status.replace(/_/g, ' ')}</Badge></div>
-              <div><p className="text-gray-500">Scheduled Date</p><p className="font-medium">{formatDate(selected.scheduled_date)}</p></div>
-              <div><p className="text-gray-500">Time</p><p className="font-medium">{selected.scheduled_time || 'Not specified'}</p></div>
-              <div><p className="text-gray-500">Amount</p><p className="font-medium">{formatCurrency(selected.amount)}</p></div>
-              <div><p className="text-gray-500">Technician</p><p className="font-medium">{selected.technician?.name || 'Not assigned'}</p></div>
-              <div className="col-span-2"><p className="text-gray-500">Address</p><p className="font-medium">{sanitizeInput(selected.address)}, {selected.city}, {selected.district} - {selected.pincode}</p></div>
-              {selected.customer_notes && <div className="col-span-2"><p className="text-gray-500">Notes</p><p className="font-medium">{sanitizeInput(selected.customer_notes)}</p></div>}
-            </div>
-            {cancellableStatuses.includes(selected.status) && (
-              <div className="flex justify-end gap-2 border-t pt-4">
-                <Button variant="outline" onClick={() => setSelected(null)}>Close</Button>
-                <Button variant="danger" onClick={handleCancel} disabled={cancelling}>{cancelling ? 'Cancelling...' : 'Cancel Booking'}</Button>
-              </div>
-            )}
-            <div className="flex justify-end border-t pt-4">
-              <Link to={`/customer/track/${selected.id}`}><Button variant="outline">Track Booking</Button></Link>
-            </div>
-          </div>
-        )}
-      </Modal>
     </div>
   )
 }

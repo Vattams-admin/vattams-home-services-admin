@@ -1,92 +1,208 @@
 import { useEffect, useState } from 'react'
-import { Bell, CheckCheck, BellOff } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
-import type { Notification } from '@/lib/supabase'
-import { useAuth } from '@/lib/auth'
-import { useToast } from '@/hooks/use-toast'
-import { Button } from '@/components/ui/button'
+import {
+  Bell,
+  CheckCheck,
+  Loader2,
+  Info,
+  CheckCircle2,
+  AlertCircle,
+  Filter,
+} from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
-import { LoadingScreen } from '@/components/LoadingScreen'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Select } from '@/components/ui/input'
+import { useAuth } from '@/lib/auth'
+import { supabase, type Notification } from '@/lib/supabase'
+import { useToast } from '@/hooks/use-toast'
 import { cn, formatDateTime } from '@/lib/utils'
 
-export function CustomerNotificationsPage() {
-  const { profile } = useAuth()
-  const { toast } = useToast()
-  const [loading, setLoading] = useState(true)
+const TYPE_FILTERS = [
+  { value: 'all', label: 'All Types' },
+  { value: 'booking', label: 'Booking' },
+  { value: 'payment', label: 'Payment' },
+  { value: 'info', label: 'Info' },
+  { value: 'alert', label: 'Alerts' },
+]
+
+const TYPE_ICONS: Record<string, typeof Info> = {
+  booking: CheckCircle2,
+  payment: CheckCircle2,
+  info: Info,
+  alert: AlertCircle,
+  success: CheckCircle2,
+  warning: AlertCircle,
+}
+
+const TYPE_COLORS: Record<string, string> = {
+  booking: 'bg-blue-100 text-blue-600',
+  payment: 'bg-green-100 text-green-600',
+  info: 'bg-slate-100 text-slate-600',
+  alert: 'bg-amber-100 text-amber-600',
+  success: 'bg-green-100 text-green-600',
+  warning: 'bg-amber-100 text-amber-600',
+}
+
+export default function CustomerNotificationsPage() {
+  const { profile, session } = useAuth()
+  const toast = useToast()
+
   const [notifications, setNotifications] = useState<Notification[]>([])
+  const [loading, setLoading] = useState(true)
+  const [typeFilter, setTypeFilter] = useState('all')
+  const [markingAll, setMarkingAll] = useState(false)
+
+  const userId = profile?.id || session?.user?.id
+
+  const loadNotifications = async () => {
+    if (!userId) return
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      setNotifications((data as Notification[]) || [])
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    if (!profile) return
-    let mounted = true;
-    (async () => {
-      const { data } = await supabase.from('notifications').select('*').eq('user_id', profile.id).order('created_at', { ascending: false })
-      if (!mounted) return
-      setNotifications((data || []) as Notification[])
-      setLoading(false)
-    })()
-    return () => { mounted = false }
-  }, [profile])
+    loadNotifications()
+  }, [userId])
 
-  const markAsRead = async (id: string) => {
-    const notif = notifications.find((n) => n.id === id)
-    if (notif && notif.is_read) return
-    setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, is_read: true } : n))
-    await supabase.from('notifications').update({ is_read: true }).eq('id', id)
+  const handleMarkAsRead = async (id: string) => {
+    try {
+      const { error } = await supabase.from('notifications').update({ is_read: true }).eq('id', id)
+      if (error) throw error
+      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)))
+    } catch {
+      toast.error('Failed to mark as read')
+    }
   }
 
-  const markAllAsRead = async () => {
-    if (!profile) return
+  const handleMarkAllAsRead = async () => {
     const unread = notifications.filter((n) => !n.is_read)
-    if (unread.length === 0) { toast('No unread notifications', 'info'); return }
-    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })))
-    await supabase.from('notifications').update({ is_read: true }).eq('user_id', profile.id).eq('is_read', false)
-    toast('All notifications marked as read', 'success')
+    if (unread.length === 0) return
+    setMarkingAll(true)
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .in(
+          'id',
+          unread.map((n) => n.id),
+        )
+      if (error) throw error
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })))
+      toast.success('All marked as read')
+    } catch {
+      toast.error('Failed to mark all as read')
+    } finally {
+      setMarkingAll(false)
+    }
   }
 
-  if (loading) return <LoadingScreen message="Loading notifications..." />
-  if (!profile) return null
+  const filteredNotifications = notifications.filter((n) => {
+    if (typeFilter === 'all') return true
+    return n.type === typeFilter
+  })
 
   const unreadCount = notifications.filter((n) => !n.is_read).length
 
+  if (loading) {
+    return (
+      <div className="flex h-[60vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Notifications</h1>
-          {unreadCount > 0 && <p className="text-sm text-gray-500">{unreadCount} unread</p>}
+          <h1 className="text-2xl font-bold text-slate-900">Notifications</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            {unreadCount > 0 ? `You have ${unreadCount} unread notification${unreadCount > 1 ? 's' : ''}.` : 'You are all caught up!'}
+          </p>
         </div>
-        {notifications.length > 0 && unreadCount > 0 && (
-          <Button variant="outline" onClick={markAllAsRead}><CheckCheck className="mr-2 h-4 w-4" />Mark All as Read</Button>
+        {unreadCount > 0 && (
+          <Button variant="outline" onClick={handleMarkAllAsRead} disabled={markingAll}>
+            {markingAll ? (
+              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+            ) : (
+              <CheckCheck className="mr-1 h-4 w-4" />
+            )}
+            Mark all as read
+          </Button>
         )}
       </div>
 
-      {notifications.length === 0 ? (
+      {/* Filter */}
+      <div className="flex items-center gap-2">
+        <Filter className="h-4 w-4 text-slate-400" />
+        <Select value={typeFilter} onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setTypeFilter(e.target.value)} className="w-48">
+          {TYPE_FILTERS.map((f) => (
+            <option key={f.value} value={f.value}>
+              {f.label}
+            </option>
+          ))}
+        </Select>
+      </div>
+
+      {/* Notifications List */}
+      {filteredNotifications.length === 0 ? (
         <Card>
-          <CardContent className="flex flex-col items-center justify-center gap-3 py-16">
-            <BellOff className="h-12 w-12 text-gray-300" />
-            <p className="text-gray-500">No notifications yet.</p>
-            <p className="text-sm text-gray-400">You&apos;ll see updates about your bookings here.</p>
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <Bell className="h-12 w-12 text-slate-300" />
+            <p className="mt-3 text-lg font-medium text-slate-700">
+              {notifications.length === 0 ? 'No notifications' : 'No notifications match your filter'}
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
+              {notifications.length === 0
+                ? 'You will be notified about bookings, payments, and updates here.'
+                : 'Try a different filter.'}
+            </p>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-2">
-          {notifications.map((n) => (
-            <Card key={n.id} className={cn('cursor-pointer transition-colors hover:bg-gray-50', !n.is_read && 'border-blue-200 bg-blue-50/50')} onClick={() => markAsRead(n.id)}>
-              <CardContent className="flex items-start gap-3 py-4">
-                <div className={cn('mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full', n.is_read ? 'bg-gray-100' : 'bg-blue-100')}>
-                  <Bell className={cn('h-5 w-5', n.is_read ? 'text-gray-400' : 'text-blue-600')} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className={cn('text-sm', n.is_read ? 'font-medium text-gray-700' : 'font-semibold text-gray-900')}>{n.title}</p>
-                    {!n.is_read && <span className="flex-shrink-0 h-2 w-2 rounded-full bg-blue-600" />}
+          {filteredNotifications.map((notif) => {
+            const Icon = TYPE_ICONS[notif.type] || Info
+            const iconColor = TYPE_COLORS[notif.type] || 'bg-slate-100 text-slate-600'
+            return (
+              <Card
+                key={notif.id}
+                className={cn('transition-colors', !notif.is_read && 'border-blue-200 bg-blue-50/30')}
+              >
+                <CardContent className="flex items-start gap-3 p-4">
+                  <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-lg', iconColor)}>
+                    <Icon className="h-5 w-5" />
                   </div>
-                  <p className="mt-1 text-sm text-gray-600">{n.message}</p>
-                  <p className="mt-1 text-xs text-gray-400">{formatDateTime(n.created_at)}</p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                  <div className="flex-1 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <p className={cn('text-sm font-medium', notif.is_read ? 'text-slate-700' : 'text-slate-900')}>
+                        {notif.title}
+                      </p>
+                      {!notif.is_read && <Badge color="blue">New</Badge>}
+                    </div>
+                    <p className="text-sm text-slate-500">{notif.message}</p>
+                    <p className="text-xs text-slate-400">{formatDateTime(notif.created_at)}</p>
+                  </div>
+                  {!notif.is_read && (
+                    <Button variant="ghost" size="sm" onClick={() => handleMarkAsRead(notif.id)}>
+                      <CheckCheck className="h-4 w-4" />
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            )
+          })}
         </div>
       )}
     </div>

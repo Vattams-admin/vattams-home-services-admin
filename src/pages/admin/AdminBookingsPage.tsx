@@ -1,177 +1,720 @@
-import { useEffect, useState } from 'react'
-import { Eye, Circle as XCircle, UserPlus, Calendar, IndianRupee } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
-import type { Profile, Booking } from '@/lib/supabase'
-import { useAuth } from '@/lib/auth'
-import { useToast } from '@/hooks/use-toast'
-import { createNotification, createAuditLog } from '@/lib/notifications'
-import { cn, formatDate, formatCurrency, BOOKING_STATUS_COLORS } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
-import { Textarea, Select } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { useEffect, useState, useCallback } from 'react'
+import {
+  CalendarCheck,
+  Eye,
+  Loader2,
+  Search,
+  Filter,
+  User,
+  MapPin,
+  IndianRupee,
+  Clock,
+  X,
+  CheckCircle2,
+  Phone,
+} from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Input, Select } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Modal } from '@/components/ui/modal'
-import { LoadingScreen } from '@/components/LoadingScreen'
+import { useAuth } from '@/lib/auth'
+import {
+  supabase,
+  type Booking,
+  type Profile,
+  type Invoice,
+} from '@/lib/supabase'
+import {
+  cn,
+  formatDate,
+  formatCurrency,
+  BOOKING_STATUS_COLORS,
+} from '@/lib/utils'
+import { createNotification, createAuditLog } from '@/lib/notifications'
+import { useToast } from '@/hooks/use-toast'
 
-type BookingWithRelations = Booking & { customer: Profile | null; technician: Profile | null }
-type FilterTab = 'all' | 'created' | 'assigned' | 'active' | 'completed' | 'cancelled'
+const STATUS_OPTIONS = [
+  { value: 'all', label: 'All Statuses' },
+  { value: 'created', label: 'Created' },
+  { value: 'confirmed', label: 'Confirmed' },
+  { value: 'assigned', label: 'Assigned' },
+  { value: 'accepted', label: 'Accepted' },
+  { value: 'on_the_way', label: 'On the Way' },
+  { value: 'arrived', label: 'Arrived' },
+  { value: 'work_started', label: 'Work Started' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'cancelled', label: 'Cancelled' },
+]
 
-export function AdminBookingsPage() {
+type BookingWithDetails = Booking & {
+  customer?: Pick<Profile, 'id' | 'name' | 'mobile'>
+  technician?: Pick<Profile, 'id' | 'name' | 'mobile'> | null
+  invoice?: Pick<Invoice, 'id' | 'invoice_number' | 'status'> | null
+}
+
+export default function AdminBookingsPage() {
   const { profile } = useAuth()
-  const { toast } = useToast()
+  const toast = useToast()
+
+  const [bookings, setBookings] = useState<BookingWithDetails[]>([])
   const [loading, setLoading] = useState(true)
-  const [bookings, setBookings] = useState<BookingWithRelations[]>([])
-  const [techs, setTechs] = useState<Profile[]>([])
-  const [filter, setFilter] = useState<FilterTab>('all')
-  const [viewBooking, setViewBooking] = useState<BookingWithRelations | null>(null)
-  const [assignBooking, setAssignBooking] = useState<BookingWithRelations | null>(null)
-  const [selectedTech, setSelectedTech] = useState('')
-  const [cancelBooking, setCancelBooking] = useState<BookingWithRelations | null>(null)
-  const [cancelReason, setCancelReason] = useState('')
-  const [actioning, setActioning] = useState(false)
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [dateFilter, setDateFilter] = useState('')
+  const [techFilter, setTechFilter] = useState('all')
+
+  const [technicians, setTechnicians] = useState<Profile[]>([])
+
+  const [selectedBooking, setSelectedBooking] =
+    useState<BookingWithDetails | null>(null)
+  const [modalLoading, setModalLoading] = useState(false)
+  const [assignModalOpen, setAssignModalOpen] = useState(false)
+  const [assignTechId, setAssignTechId] = useState('')
+  const [assignLoading, setAssignLoading] = useState(false)
+  const [statusUpdateLoading, setStatusUpdateLoading] = useState(false)
+
+  const loadBookings = useCallback(async () => {
+    setLoading(true)
+    try {
+      let query = supabase
+        .from('bookings')
+        .select(
+          '*, customer:profiles!bookings_customer_id_fkey(id, name, mobile), technician:profiles!bookings_technician_id_fkey(id, name, mobile)',
+        )
+        .order('created_at', { ascending: false })
+
+      if (statusFilter !== 'all') {
+        query = query.eq('status', statusFilter)
+      }
+      if (dateFilter) {
+        query = query.eq('scheduled_date', dateFilter)
+      }
+      if (techFilter !== 'all') {
+        if (techFilter === 'unassigned') {
+          query = query.is('technician_id', null)
+        } else {
+          query = query.eq('technician_id', techFilter)
+        }
+      }
+
+      const { data, error } = await query
+      if (error) throw error
+
+      let result = (data as BookingWithDetails[]) || []
+
+      if (search.trim()) {
+        const q = search.toLowerCase()
+        result = result.filter(
+          (b) =>
+            b.booking_number?.toLowerCase().includes(q) ||
+            b.service_name?.toLowerCase().includes(q) ||
+            b.customer?.name?.toLowerCase().includes(q) ||
+            b.city?.toLowerCase().includes(q),
+        )
+      }
+
+      setBookings(result)
+    } catch {
+      toast.error('Failed to load bookings')
+    } finally {
+      setLoading(false)
+    }
+  }, [statusFilter, dateFilter, techFilter, search, toast])
 
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      const { data: bkData } = await supabase.from('bookings').select('*, customer:customer_id(*), technician:technician_id(*)').order('created_at', { ascending: false })
-      const { data: techData } = await supabase.from('profiles').select('*').eq('role', 'technician').eq('status', 'active').eq('verification_status', 'approved')
-      if (!mounted) return
-      setBookings((bkData || []) as BookingWithRelations[])
-      setTechs((techData || []) as Profile[])
-      setLoading(false)
-    })()
-    return () => { mounted = false }
+    async function loadTechnicians() {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, name, mobile')
+        .eq('role', 'technician')
+        .eq('verification_status', 'approved')
+        .order('name', { ascending: true })
+      setTechnicians((data as Profile[]) || [])
+    }
+    loadTechnicians()
   }, [])
 
-  const activeStatuses = ['assigned', 'accepted', 'on_the_way', 'arrived', 'work_started']
-  const filtered = filter === 'all' ? bookings : filter === 'active' ? bookings.filter((b) => activeStatuses.includes(b.status)) : bookings.filter((b) => b.status === filter)
+  useEffect(() => {
+    loadBookings()
+  }, [loadBookings])
 
-  const handleAssign = async () => {
-    if (!assignBooking || !selectedTech) return
-    setActioning(true)
-    const { error } = await supabase.from('bookings').update({ technician_id: selectedTech, status: 'assigned' }).eq('id', assignBooking.id)
-    setActioning(false)
-    if (error) { toast('Failed to assign technician', 'error'); return }
-    await createNotification(selectedTech, 'New Job Assigned', `You have been assigned to booking #${assignBooking.booking_number}.`, 'info')
-    await createNotification(assignBooking.customer_id, 'Technician Assigned', `A technician has been assigned to your booking #${assignBooking.booking_number}.`, 'info')
-    if (profile) await createAuditLog(profile.id, 'assign_technician', 'booking', assignBooking.id, `Assigned technician to booking ${assignBooking.booking_number}`)
-    toast('Technician assigned successfully', 'success')
-    setBookings((prev) => prev.map((b) => b.id === assignBooking.id ? { ...b, technician_id: selectedTech, status: 'assigned', technician: techs.find((t) => t.id === selectedTech) || null } : b))
-    setAssignBooking(null); setSelectedTech('')
+  async function viewBooking(booking: BookingWithDetails) {
+    setSelectedBooking(booking)
+    setModalLoading(true)
+    try {
+      const { data: invoice } = await supabase
+        .from('invoices')
+        .select('id, invoice_number, status')
+        .eq('booking_id', booking.id)
+        .maybeSingle()
+
+      setSelectedBooking({ ...booking, invoice: invoice || null })
+    } catch {
+      // ignore
+    } finally {
+      setModalLoading(false)
+    }
   }
 
-  const handleCancel = async () => {
-    if (!cancelBooking || !cancelReason.trim()) return
-    setActioning(true)
-    const { error } = await supabase.from('bookings').update({ status: 'cancelled', cancel_reason: cancelReason.trim(), cancelled_by: profile?.id || null }).eq('id', cancelBooking.id)
-    setActioning(false)
-    if (error) { toast('Failed to cancel booking', 'error'); return }
-    await createNotification(cancelBooking.customer_id, 'Booking Cancelled', `Your booking #${cancelBooking.booking_number} has been cancelled. Reason: ${cancelReason.trim()}`, 'error')
-    if (cancelBooking.technician_id) await createNotification(cancelBooking.technician_id, 'Booking Cancelled', `Booking #${cancelBooking.booking_number} has been cancelled.`, 'error')
-    if (profile) await createAuditLog(profile.id, 'cancel_booking', 'booking', cancelBooking.id, `Cancelled booking ${cancelBooking.booking_number}: ${cancelReason.trim()}`)
-    toast('Booking cancelled', 'success')
-    setBookings((prev) => prev.map((b) => b.id === cancelBooking.id ? { ...b, status: 'cancelled', cancel_reason: cancelReason.trim(), cancelled_by: profile?.id || null } : b))
-    setCancelBooking(null); setCancelReason('')
+  function openAssignModal(booking: BookingWithDetails) {
+    setSelectedBooking(booking)
+    setAssignTechId(booking.technician_id || '')
+    setAssignModalOpen(true)
   }
 
-  if (loading) return <LoadingScreen message="Loading bookings..." />
+  async function assignTechnician() {
+    if (!selectedBooking || !assignTechId) {
+      toast.warning('Please select a technician')
+      return
+    }
 
-  const tabs: { key: FilterTab; label: string }[] = [
-    { key: 'all', label: 'All' }, { key: 'created', label: 'Created' }, { key: 'assigned', label: 'Assigned' },
-    { key: 'active', label: 'Active' }, { key: 'completed', label: 'Completed' }, { key: 'cancelled', label: 'Cancelled' },
-  ]
+    setAssignLoading(true)
+    try {
+      const newStatus =
+        selectedBooking.status === 'created' ||
+        selectedBooking.status === 'confirmed'
+          ? 'assigned'
+          : selectedBooking.status
+
+      const { error } = await supabase
+        .from('bookings')
+        .update({ technician_id: assignTechId, status: newStatus })
+        .eq('id', selectedBooking.id)
+
+      if (error) throw error
+
+      const tech = technicians.find((t) => t.id === assignTechId)
+
+      await createNotification(
+        assignTechId,
+        'New Job Assigned',
+        `You have been assigned to booking ${selectedBooking.booking_number} for ${selectedBooking.service_name}.`,
+        'booking',
+      )
+      await createNotification(
+        selectedBooking.customer_id,
+        'Technician Assigned',
+        `A technician${tech ? ` (${tech.name})` : ''} has been assigned to your booking ${selectedBooking.booking_number}.`,
+        'booking',
+      )
+      await createAuditLog(
+        profile?.id || '',
+        'assign_technician',
+        'booking',
+        selectedBooking.id,
+        `Assigned technician ${tech?.name || assignTechId} to booking ${selectedBooking.booking_number}`,
+      )
+
+      toast.success('Technician assigned successfully')
+      setAssignModalOpen(false)
+      await loadBookings()
+      setSelectedBooking(null)
+    } catch {
+      toast.error('Failed to assign technician')
+    } finally {
+      setAssignLoading(false)
+    }
+  }
+
+  async function updateStatus(newStatus: string) {
+    if (!selectedBooking) return
+
+    setStatusUpdateLoading(true)
+    try {
+      const { error } = await supabase
+        .from('bookings')
+        .update({ status: newStatus })
+        .eq('id', selectedBooking.id)
+
+      if (error) throw error
+
+      await createNotification(
+        selectedBooking.customer_id,
+        'Booking Status Updated',
+        `Your booking ${selectedBooking.booking_number} status has been updated to: ${newStatus.replace(/_/g, ' ')}.`,
+        'booking',
+      )
+      await createAuditLog(
+        profile?.id || '',
+        'update_booking_status',
+        'booking',
+        selectedBooking.id,
+        `Updated booking ${selectedBooking.booking_number} status to ${newStatus}`,
+      )
+
+      toast.success('Status updated successfully')
+      setSelectedBooking({ ...selectedBooking, status: newStatus as Booking['status'] })
+      await loadBookings()
+    } catch {
+      toast.error('Failed to update status')
+    } finally {
+      setStatusUpdateLoading(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex h-[60vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
-      <div><h1 className="text-2xl font-bold text-gray-900">All Bookings</h1><p className="text-sm text-gray-500">Manage and monitor all platform bookings</p></div>
-
-      <div className="flex flex-wrap gap-2">
-        {tabs.map((t) => (
-          <button key={t.key} onClick={() => setFilter(t.key)} className={cn('rounded-full px-3 py-1.5 text-sm font-medium', filter === t.key ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200')}>{t.label}</button>
-        ))}
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">All Bookings</h1>
+        <p className="mt-1 text-sm text-slate-500">
+          Manage and track all platform bookings
+        </p>
       </div>
 
-      {filtered.length === 0 ? (
-        <Card><CardContent className="py-12 text-center"><p className="text-gray-500">No bookings found.</p></CardContent></Card>
+      {/* Filters */}
+      <Card>
+        <CardContent className="flex flex-col gap-4 p-4 lg:flex-row lg:items-end">
+          <div className="flex-1 space-y-1.5">
+            <Label>Search</Label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                placeholder="Search by booking no, service, customer, city..."
+                value={search}
+                onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+          </div>
+          <div className="space-y-1.5 lg:w-48">
+            <Label>
+              <span className="flex items-center gap-1">
+                <Filter className="h-3 w-3" /> Status
+              </span>
+            </Label>
+            <Select
+              value={statusFilter}
+              onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setStatusFilter(e.target.value)}
+            >
+              {STATUS_OPTIONS.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="space-y-1.5 lg:w-40">
+            <Label>Date</Label>
+            <Input
+              type="date"
+              value={dateFilter}
+              onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setDateFilter(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5 lg:w-56">
+            <Label>Technician</Label>
+            <Select
+              value={techFilter}
+              onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setTechFilter(e.target.value)}
+            >
+              <option value="all">All Technicians</option>
+              <option value="unassigned">Unassigned</option>
+              {technicians.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Bookings Table */}
+      {bookings.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <CalendarCheck className="h-12 w-12 text-slate-300" />
+            <p className="mt-3 text-sm font-medium text-slate-500">
+              No bookings found
+            </p>
+            <p className="text-xs text-slate-400">
+              Try adjusting your filters.
+            </p>
+          </CardContent>
+        </Card>
       ) : (
-        <div className="space-y-3">
-          {filtered.map((b) => (
-            <Card key={b.id}>
-              <CardContent className="py-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-xs text-gray-400">#{b.booking_number}</span>
-                      <p className="font-medium text-gray-900">{b.service_name}</p>
-                      <Badge color={BOOKING_STATUS_COLORS[b.status]}>{b.status.replace(/_/g, ' ')}</Badge>
-                    </div>
-                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500">
-                      <span>Customer: {b.customer?.name || 'Unknown'}</span>
-                      <span>Tech: {b.technician?.name || 'Unassigned'}</span>
-                      <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{formatDate(b.scheduled_date)}</span>
-                      <span className="flex items-center gap-1 font-semibold text-gray-700"><IndianRupee className="h-3 w-3" />{formatCurrency(b.amount)}</span>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" onClick={() => setViewBooking(b)}><Eye className="mr-1 h-4 w-4" />View</Button>
-                    {!b.technician_id && b.status !== 'cancelled' && b.status !== 'completed' && <Button size="sm" onClick={() => setAssignBooking(b)}><UserPlus className="mr-1 h-4 w-4" />Assign</Button>}
-                    {b.status !== 'cancelled' && b.status !== 'completed' && <Button size="sm" variant="danger" onClick={() => setCancelBooking(b)}><XCircle className="mr-1 h-4 w-4" />Cancel</Button>}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <Card>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="border-b border-slate-200 bg-slate-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-700">
+                      Booking
+                    </th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-700">
+                      Customer
+                    </th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-700">
+                      Service
+                    </th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-700">
+                      Technician
+                    </th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-700">
+                      Date
+                    </th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-700">
+                      Amount
+                    </th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-700">
+                      Status
+                    </th>
+                    <th className="px-4 py-3 text-right font-semibold text-slate-700">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {bookings.map((booking) => (
+                    <tr key={booking.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-slate-900">
+                          {booking.booking_number}
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          {booking.city}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="text-slate-900">
+                          {booking.customer?.name || 'N/A'}
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          {booking.customer?.mobile || ''}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-slate-700">
+                        {booking.service_name}
+                      </td>
+                      <td className="px-4 py-3">
+                        {booking.technician ? (
+                          <div>
+                            <div className="text-slate-900">
+                              {booking.technician.name}
+                            </div>
+                            <div className="text-xs text-slate-500">
+                              {booking.technician.mobile}
+                            </div>
+                          </div>
+                        ) : (
+                          <Badge color="amber">Unassigned</Badge>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-slate-700">
+                        {formatDate(booking.scheduled_date)}
+                        {booking.scheduled_time && (
+                          <div className="text-xs text-slate-500">
+                            {booking.scheduled_time}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 font-medium text-slate-900">
+                        {formatCurrency(booking.amount)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge
+                          className={cn(
+                            'capitalize',
+                            BOOKING_STATUS_COLORS[booking.status] ||
+                              'bg-gray-100 text-gray-700',
+                          )}
+                        >
+                          {booking.status.replace(/_/g, ' ')}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => viewBooking(booking)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          {!booking.technician_id &&
+                            booking.status !== 'cancelled' &&
+                            booking.status !== 'completed' && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openAssignModal(booking)}
+                              >
+                                Assign
+                              </Button>
+                            )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
-      {/* View Details */}
-      <Modal open={!!viewBooking} onClose={() => setViewBooking(null)} title={`Booking #${viewBooking?.booking_number || ''}`}>
-        {viewBooking && (
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div><p className="text-gray-500">Service</p><p className="font-medium">{viewBooking.service_name}</p></div>
-            <div><p className="text-gray-500">Status</p><Badge color={BOOKING_STATUS_COLORS[viewBooking.status]}>{viewBooking.status.replace(/_/g, ' ')}</Badge></div>
-            <div><p className="text-gray-500">Customer</p><p className="font-medium">{viewBooking.customer?.name || 'Unknown'}</p></div>
-            <div><p className="text-gray-500">Customer Mobile</p><p className="font-medium">{viewBooking.customer?.mobile || '-'}</p></div>
-            <div><p className="text-gray-500">Technician</p><p className="font-medium">{viewBooking.technician?.name || 'Unassigned'}</p></div>
-            <div><p className="text-gray-500">Amount</p><p className="font-medium">{formatCurrency(viewBooking.amount)}</p></div>
-            <div><p className="text-gray-500">Scheduled Date</p><p className="font-medium">{formatDate(viewBooking.scheduled_date)}</p></div>
-            <div><p className="text-gray-500">Scheduled Time</p><p className="font-medium">{viewBooking.scheduled_time || '-'}</p></div>
-            <div><p className="text-gray-500">Address</p><p className="font-medium">{viewBooking.address}, {viewBooking.city}, {viewBooking.district} - {viewBooking.pincode}</p></div>
-            <div><p className="text-gray-500">Created</p><p className="font-medium">{formatDate(viewBooking.created_at)}</p></div>
-            {viewBooking.customer_notes && <div className="col-span-2"><p className="text-gray-500">Customer Notes</p><p className="font-medium">{viewBooking.customer_notes}</p></div>}
-            {viewBooking.cancel_reason && <div className="col-span-2"><p className="text-gray-500">Cancel Reason</p><p className="font-medium text-red-600">{viewBooking.cancel_reason}</p></div>}
-          </div>
-        )}
-      </Modal>
+      {/* Booking Details Modal */}
+      {selectedBooking && !assignModalOpen && (
+        <Modal
+          title="Booking Details"
+          onClose={() => setSelectedBooking(null)}
+          className="max-w-2xl"
+        >
+          {modalLoading ? (
+            <div className="flex h-40 items-center justify-center">
+              <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {/* Booking Header */}
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">
+                    {selectedBooking.booking_number}
+                  </h3>
+                  <p className="text-sm text-slate-500">
+                    {selectedBooking.service_name}
+                  </p>
+                </div>
+                <Badge
+                  className={cn(
+                    'capitalize',
+                    BOOKING_STATUS_COLORS[selectedBooking.status] ||
+                      'bg-gray-100 text-gray-700',
+                  )}
+                >
+                  {selectedBooking.status.replace(/_/g, ' ')}
+                </Badge>
+              </div>
 
-      {/* Assign Technician */}
-      <Modal open={!!assignBooking} onClose={() => { setAssignBooking(null); setSelectedTech('') }} title="Assign Technician">
-        {assignBooking && (
+              {/* Customer & Technician Info */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="rounded-lg border border-slate-200 p-4">
+                  <p className="mb-2 text-xs font-semibold uppercase text-slate-500">
+                    Customer
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4 text-slate-400" />
+                    <span className="text-sm font-medium text-slate-900">
+                      {selectedBooking.customer?.name || 'N/A'}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex items-center gap-2">
+                    <Phone className="h-4 w-4 text-slate-400" />
+                    <span className="text-sm text-slate-600">
+                      {selectedBooking.customer?.mobile || 'N/A'}
+                    </span>
+                  </div>
+                </div>
+                <div className="rounded-lg border border-slate-200 p-4">
+                  <p className="mb-2 text-xs font-semibold uppercase text-slate-500">
+                    Technician
+                  </p>
+                  {selectedBooking.technician ? (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4 text-slate-400" />
+                        <span className="text-sm font-medium text-slate-900">
+                          {selectedBooking.technician.name}
+                        </span>
+                      </div>
+                      <div className="mt-1 flex items-center gap-2">
+                        <Phone className="h-4 w-4 text-slate-400" />
+                        <span className="text-sm text-slate-600">
+                          {selectedBooking.technician.mobile}
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <X className="h-4 w-4 text-slate-400" />
+                      <span className="text-sm text-slate-500">
+                        Not assigned
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Service Details */}
+              <div className="space-y-3 rounded-lg border border-slate-200 p-4">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 text-sm text-slate-600">
+                    <Clock className="h-4 w-4 text-slate-400" /> Scheduled
+                  </span>
+                  <span className="text-sm font-medium text-slate-900">
+                    {formatDate(selectedBooking.scheduled_date)}
+                    {selectedBooking.scheduled_time &&
+                      ` · ${selectedBooking.scheduled_time}`}
+                  </span>
+                </div>
+                <div className="flex items-start justify-between">
+                  <span className="flex items-center gap-2 text-sm text-slate-600">
+                    <MapPin className="h-4 w-4 text-slate-400" /> Address
+                  </span>
+                  <span className="text-right text-sm text-slate-900">
+                    {selectedBooking.address}
+                    <br />
+                    {selectedBooking.city}, {selectedBooking.district} -{' '}
+                    {selectedBooking.pincode}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 text-sm text-slate-600">
+                    <IndianRupee className="h-4 w-4 text-slate-400" /> Amount
+                  </span>
+                  <span className="text-sm font-bold text-slate-900">
+                    {formatCurrency(selectedBooking.amount)}
+                  </span>
+                </div>
+                {selectedBooking.invoice && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-600">Invoice</span>
+                    <Badge
+                      color={
+                        selectedBooking.invoice.status === 'paid'
+                          ? 'green'
+                          : 'amber'
+                      }
+                    >
+                      {selectedBooking.invoice.invoice_number} ·{' '}
+                      {selectedBooking.invoice.status}
+                    </Badge>
+                  </div>
+                )}
+              </div>
+
+              {/* Customer Notes */}
+              {selectedBooking.customer_notes && (
+                <div>
+                  <p className="text-sm font-medium text-slate-700">
+                    Customer Notes
+                  </p>
+                  <p className="mt-1 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
+                    {selectedBooking.customer_notes}
+                  </p>
+                </div>
+              )}
+
+              {/* Cancel Info */}
+              {selectedBooking.status === 'cancelled' && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+                  <p className="text-sm font-medium text-red-800">
+                    Cancelled by: {selectedBooking.cancelled_by || 'Unknown'}
+                  </p>
+                  {selectedBooking.cancel_reason && (
+                    <p className="mt-1 text-sm text-red-700">
+                      Reason: {selectedBooking.cancel_reason}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex flex-wrap gap-2 border-t border-slate-200 pt-4">
+                {!selectedBooking.technician_id &&
+                  selectedBooking.status !== 'cancelled' &&
+                  selectedBooking.status !== 'completed' && (
+                    <Button onClick={() => openAssignModal(selectedBooking)}>
+                      Assign Technician
+                    </Button>
+                  )}
+                {selectedBooking.status !== 'completed' &&
+                  selectedBooking.status !== 'cancelled' && (
+                    <>
+                      <Button
+                        onClick={() => updateStatus('confirmed')}
+                        disabled={statusUpdateLoading}
+                        variant="outline"
+                      >
+                        Mark Confirmed
+                      </Button>
+                      <Button
+                        onClick={() => updateStatus('completed')}
+                        disabled={statusUpdateLoading}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        <CheckCircle2 className="mr-1 h-4 w-4" /> Mark
+                        Completed
+                      </Button>
+                      <Button
+                        onClick={() => updateStatus('cancelled')}
+                        disabled={statusUpdateLoading}
+                        variant="danger"
+                      >
+                        Cancel Booking
+                      </Button>
+                    </>
+                  )}
+              </div>
+            </div>
+          )}
+        </Modal>
+      )}
+
+      {/* Assign Technician Modal */}
+      {assignModalOpen && selectedBooking && (
+        <Modal
+          title="Assign Technician"
+          onClose={() => setAssignModalOpen(false)}
+        >
           <div className="space-y-4">
-            <p className="text-sm text-gray-600">Assign a technician to booking <strong>#{assignBooking.booking_number}</strong> ({assignBooking.service_name})</p>
             <div>
-              <Label htmlFor="tech">Select Technician</Label>
-              <Select id="tech" value={selectedTech} onChange={(e) => setSelectedTech(e.target.value)}>
-                <option value="">Choose a technician...</option>
-                {techs.map((t) => <option key={t.id} value={t.id}>{t.name} - {t.city || 'Unknown'} {t.is_available ? '(Available)' : '(Busy)'}</option>)}
+              <p className="text-sm text-slate-600">
+                Select a technician to assign to booking{' '}
+                <span className="font-semibold text-slate-900">
+                  {selectedBooking.booking_number}
+                </span>{' '}
+                for{' '}
+                <span className="font-semibold text-slate-900">
+                  {selectedBooking.service_name}
+                </span>
+                .
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Technician</Label>
+              <Select
+                value={assignTechId}
+                onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setAssignTechId(e.target.value)}
+              >
+                <option value="">Select a technician...</option>
+                {technicians.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} ({t.mobile})
+                  </option>
+                ))}
               </Select>
             </div>
-            <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => { setAssignBooking(null); setSelectedTech('') }}>Cancel</Button><Button onClick={handleAssign} disabled={actioning || !selectedTech}>Assign</Button></div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setAssignModalOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={assignTechnician}
+                loading={assignLoading}
+                disabled={!assignTechId}
+              >
+                Assign
+              </Button>
+            </div>
           </div>
-        )}
-      </Modal>
-
-      {/* Cancel Booking */}
-      <Modal open={!!cancelBooking} onClose={() => { setCancelBooking(null); setCancelReason('') }} title="Cancel Booking">
-        {cancelBooking && (
-          <div className="space-y-4">
-            <p className="text-sm text-gray-600">Provide a reason for cancelling booking <strong>#{cancelBooking.booking_number}</strong>:</p>
-            <div><Label htmlFor="creason">Cancellation Reason</Label><Textarea id="creason" value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} rows={3} /></div>
-            <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => { setCancelBooking(null); setCancelReason('') }}>Cancel</Button><Button variant="danger" onClick={handleCancel} disabled={actioning || !cancelReason.trim()}>Cancel Booking</Button></div>
-          </div>
-        )}
-      </Modal>
+        </Modal>
+      )}
     </div>
   )
 }

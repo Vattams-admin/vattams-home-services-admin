@@ -7,4 +7,4 @@ Disallow: /register
 Disallow: /forgot-password
 Disallow: /dashboard
 Allow: /
-Sitemap: https://vattams.com/sitemap.xml
+Sitemap: https://vattams.net/sitemap.xml

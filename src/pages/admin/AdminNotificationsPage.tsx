@@ -1,89 +1,565 @@
-import { useEffect, useState } from 'react'
-import { Bell, CheckCheck, BellOff } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
-import type { Notification } from '@/lib/supabase'
-import { useAuth } from '@/lib/auth'
-import { useToast } from '@/hooks/use-toast'
-import { cn, formatDateTime } from '@/lib/utils'
+import { useEffect, useState, useCallback } from 'react'
+import {
+  Bell,
+  Send,
+  Loader2,
+  Search,
+  Users,
+  Megaphone,
+  CheckCircle2,
+  Clock,
+  Mail,
+} from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { LoadingScreen } from '@/components/LoadingScreen'
+import { Input, Select, Textarea } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Modal } from '@/components/ui/modal'
+import { useAuth } from '@/lib/auth'
+import { supabase, type Notification, type Profile } from '@/lib/supabase'
+import { cn, formatDate, formatDateTime } from '@/lib/utils'
+import { createNotification, createAuditLog } from '@/lib/notifications'
+import { useToast } from '@/hooks/use-toast'
 
-export function AdminNotificationsPage() {
+type RecipientType = 'all' | 'customers' | 'technicians' | 'specific'
+
+export default function AdminNotificationsPage() {
   const { profile } = useAuth()
-  const { toast } = useToast()
-  const [loading, setLoading] = useState(true)
+  const toast = useToast()
+
   const [notifications, setNotifications] = useState<Notification[]>([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+
+  const [sendModalOpen, setSendModalOpen] = useState(false)
+  const [broadcastModalOpen, setBroadcastModalOpen] = useState(false)
+  const [sending, setSending] = useState(false)
+
+  // Send notification form
+  const [recipientType, setRecipientType] = useState<RecipientType>('all')
+  const [specificUserId, setSpecificUserId] = useState('')
+  const [users, setUsers] = useState<Profile[]>([])
+  const [notifTitle, setNotifTitle] = useState('')
+  const [notifMessage, setNotifMessage] = useState('')
+  const [notifType, setNotifType] = useState('info')
+
+  // Broadcast form
+  const [broadcastTitle, setBroadcastTitle] = useState('')
+  const [broadcastMessage, setBroadcastMessage] = useState('')
+
+  const loadNotifications = useCallback(async () => {
+    setLoading(true)
+    try {
+      // Fetch admin's own sent notifications (we track via audit logs)
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100)
+
+      if (error) throw error
+
+      let result = (data as Notification[]) || []
+
+      if (search.trim()) {
+        const q = search.toLowerCase()
+        result = result.filter(
+          (n) =>
+            n.title?.toLowerCase().includes(q) ||
+            n.message?.toLowerCase().includes(q),
+        )
+      }
+
+      setNotifications(result)
+    } catch {
+      toast.error('Failed to load notifications')
+    } finally {
+      setLoading(false)
+    }
+  }, [search, toast])
 
   useEffect(() => {
-    if (!profile) return
-    let mounted = true;
-    (async () => {
-      const { data } = await supabase.from('notifications').select('*').eq('user_id', profile.id).order('created_at', { ascending: false })
-      if (!mounted) return
-      setNotifications((data || []) as Notification[])
-      setLoading(false)
-    })()
-    return () => { mounted = false }
-  }, [profile])
+    loadNotifications()
+  }, [loadNotifications])
 
-  const markAsRead = async (n: Notification) => {
-    if (n.is_read) return
-    const { error } = await supabase.from('notifications').update({ is_read: true }).eq('id', n.id)
-    if (error) { toast('Failed to update', 'error'); return }
-    setNotifications((prev) => prev.map((x) => x.id === n.id ? { ...x, is_read: true } : x))
+  async function loadUsers() {
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, name, mobile, role')
+        .order('name', { ascending: true })
+      setUsers((data as Profile[]) || [])
+    } catch {
+      // ignore
+    }
   }
 
-  const markAllRead = async () => {
-    const unread = notifications.filter((n) => !n.is_read)
-    if (unread.length === 0) return
-    const ids = unread.map((n) => n.id)
-    const { error } = await supabase.from('notifications').update({ is_read: true }).in('id', ids)
-    if (error) { toast('Failed to update', 'error'); return }
-    setNotifications((prev) => prev.map((x) => ({ ...x, is_read: true })))
-    toast('All notifications marked as read', 'success')
+  function openSendModal() {
+    setRecipientType('all')
+    setSpecificUserId('')
+    setNotifTitle('')
+    setNotifMessage('')
+    setNotifType('info')
+    loadUsers()
+    setSendModalOpen(true)
   }
 
-  if (loading) return <LoadingScreen message="Loading notifications..." />
-  if (!profile) return null
+  function openBroadcastModal() {
+    setBroadcastTitle('')
+    setBroadcastMessage('')
+    setBroadcastModalOpen(true)
+  }
 
-  const unreadCount = notifications.filter((n) => !n.is_read).length
+  async function sendNotification() {
+    if (!notifTitle.trim() || !notifMessage.trim()) {
+      toast.warning('Please enter title and message')
+      return
+    }
+
+    if (recipientType === 'specific' && !specificUserId) {
+      toast.warning('Please select a user')
+      return
+    }
+
+    setSending(true)
+    try {
+      let userIds: string[] = []
+
+      if (recipientType === 'all') {
+        const { data } = await supabase
+          .from('profiles')
+          .select('id')
+          .in('role', ['customer', 'technician'])
+        userIds = (data?.map((u) => u.id) as string[]) || []
+      } else if (recipientType === 'customers') {
+        const { data } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('role', 'customer')
+        userIds = (data?.map((u) => u.id) as string[]) || []
+      } else if (recipientType === 'technicians') {
+        const { data } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('role', 'technician')
+          .eq('verification_status', 'approved')
+        userIds = (data?.map((u) => u.id) as string[]) || []
+      } else if (recipientType === 'specific') {
+        userIds = [specificUserId]
+      }
+
+      if (userIds.length === 0) {
+        toast.warning('No recipients found')
+        setSending(false)
+        return
+      }
+
+      // Insert notifications in batches
+      const batchSize = 100
+      for (let i = 0; i < userIds.length; i += batchSize) {
+        const batch = userIds.slice(i, i + batchSize)
+        const { error } = await supabase.from('notifications').insert(
+          batch.map((userId) => ({
+            user_id: userId,
+            title: notifTitle.trim(),
+            message: notifMessage.trim(),
+            type: notifType,
+          })),
+        )
+        if (error) throw error
+      }
+
+      await createAuditLog(
+        profile?.id || '',
+        'send_notification',
+        'notification',
+        null,
+        `Sent notification "${notifTitle.trim()}" to ${userIds.length} user(s) (${recipientType})`,
+      )
+
+      toast.success(
+        `Notification sent to ${userIds.length} user(s) successfully`,
+      )
+      setSendModalOpen(false)
+      setNotifTitle('')
+      setNotifMessage('')
+      await loadNotifications()
+    } catch {
+      toast.error('Failed to send notification')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  async function sendBroadcast() {
+    if (!broadcastTitle.trim() || !broadcastMessage.trim()) {
+      toast.warning('Please enter title and message')
+      return
+    }
+
+    setSending(true)
+    try {
+      const { data, error: fetchError } = await supabase
+        .from('profiles')
+        .select('id')
+        .in('role', ['customer', 'technician', 'admin', 'super_admin'])
+
+      if (fetchError) throw fetchError
+
+      const userIds = (data?.map((u) => u.id) as string[]) || []
+
+      if (userIds.length === 0) {
+        toast.warning('No users found')
+        setSending(false)
+        return
+      }
+
+      const batchSize = 100
+      for (let i = 0; i < userIds.length; i += batchSize) {
+        const batch = userIds.slice(i, i + batchSize)
+        const { error } = await supabase.from('notifications').insert(
+          batch.map((userId) => ({
+            user_id: userId,
+            title: broadcastTitle.trim(),
+            message: broadcastMessage.trim(),
+            type: 'broadcast',
+          })),
+        )
+        if (error) throw error
+      }
+
+      await createAuditLog(
+        profile?.id || '',
+        'broadcast_notification',
+        'notification',
+        null,
+        `Broadcast "${broadcastTitle.trim()}" to ${userIds.length} users`,
+      )
+
+      toast.success(`Broadcast sent to ${userIds.length} users successfully`)
+      setBroadcastModalOpen(false)
+      setBroadcastTitle('')
+      setBroadcastMessage('')
+      await loadNotifications()
+    } catch {
+      toast.error('Failed to send broadcast')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex h-[60vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div><h1 className="text-2xl font-bold text-gray-900">Notifications</h1><p className="text-sm text-gray-500">{unreadCount} unread notification{unreadCount !== 1 ? 's' : ''}</p></div>
-        {unreadCount > 0 && <Button variant="outline" onClick={markAllRead}><CheckCheck className="mr-2 h-4 w-4" />Mark All Read</Button>}
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Notifications</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Send and manage platform notifications
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={openBroadcastModal}>
+            <Megaphone className="mr-1 h-4 w-4" /> Broadcast
+          </Button>
+          <Button onClick={openSendModal}>
+            <Send className="mr-1 h-4 w-4" /> Send Notification
+          </Button>
+        </div>
       </div>
 
-      {notifications.length === 0 ? (
-        <Card><CardContent className="flex flex-col items-center gap-3 py-12">
-          <BellOff className="h-12 w-12 text-gray-300" />
-          <p className="text-gray-500">No notifications yet.</p>
-        </CardContent></Card>
-      ) : (
-        <div className="space-y-3">
-          {notifications.map((n) => (
-            <Card key={n.id} className={cn('cursor-pointer transition-colors hover:bg-gray-50', !n.is_read && 'border-blue-300 bg-blue-50/30')} >
-              <CardContent className="py-4" onClick={() => markAsRead(n)}>
-                <div className="flex items-start gap-3">
-                  <div className={cn('flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full', n.is_read ? 'bg-gray-100' : 'bg-blue-100')}>
-                    <Bell className={cn('h-5 w-5', n.is_read ? 'text-gray-400' : 'text-blue-600')} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium text-gray-900">{n.title}</p>
-                      {!n.is_read && <Badge color="bg-blue-100 text-blue-700">New</Badge>}
+      {/* Stats */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <Card>
+          <CardContent className="flex items-center gap-4 p-5">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-50">
+              <Bell className="h-6 w-6 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-sm text-slate-500">Total Sent</p>
+              <p className="text-2xl font-bold text-slate-900">
+                {notifications.length}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center gap-4 p-5">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-green-50">
+              <CheckCircle2 className="h-6 w-6 text-green-600" />
+            </div>
+            <div>
+              <p className="text-sm text-slate-500">Read</p>
+              <p className="text-2xl font-bold text-slate-900">
+                {notifications.filter((n) => n.is_read).length}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center gap-4 p-5">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-amber-50">
+              <Clock className="h-6 w-6 text-amber-600" />
+            </div>
+            <div>
+              <p className="text-sm text-slate-500">Unread</p>
+              <p className="text-2xl font-bold text-slate-900">
+                {notifications.filter((n) => !n.is_read).length}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Search */}
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <Input
+          placeholder="Search notifications..."
+          value={search}
+          onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setSearch(e.target.value)}
+          className="pl-9"
+        />
+      </div>
+
+      {/* Notifications List */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <CardTitle>Sent Notifications</CardTitle>
+          <Badge color="gray">{notifications.length} total</Badge>
+        </CardHeader>
+        <CardContent className="p-0">
+          {notifications.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <Bell className="h-12 w-12 text-slate-300" />
+              <p className="mt-3 text-sm font-medium text-slate-500">
+                No notifications sent yet
+              </p>
+              <Button onClick={openSendModal} className="mt-3" size="sm">
+                <Send className="mr-1 h-4 w-4" /> Send First Notification
+              </Button>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {notifications.slice(0, 50).map((notif) => (
+                <div
+                  key={notif.id}
+                  className="flex items-start justify-between p-4 hover:bg-slate-50"
+                >
+                  <div className="flex items-start gap-3">
+                    <div
+                      className={cn(
+                        'flex h-10 w-10 items-center justify-center rounded-lg',
+                        notif.type === 'broadcast'
+                          ? 'bg-purple-50'
+                          : notif.type === 'verification'
+                            ? 'bg-blue-50'
+                            : notif.type === 'booking'
+                              ? 'bg-green-50'
+                              : notif.type === 'reminder'
+                                ? 'bg-amber-50'
+                                : 'bg-slate-50',
+                      )}
+                    >
+                      {notif.type === 'broadcast' ? (
+                        <Megaphone className="h-5 w-5 text-purple-600" />
+                      ) : (
+                        <Bell className="h-5 w-5 text-slate-600" />
+                      )}
                     </div>
-                    <p className="mt-1 text-sm text-gray-600">{n.message}</p>
-                    <p className="mt-1 text-xs text-gray-400">{formatDateTime(n.created_at)}</p>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-slate-900">
+                          {notif.title}
+                        </p>
+                        {notif.type === 'broadcast' && (
+                          <Badge color="purple">Broadcast</Badge>
+                        )}
+                        <Badge
+                          color={notif.is_read ? 'green' : 'amber'}
+                        >
+                          {notif.is_read ? 'Read' : 'Unread'}
+                        </Badge>
+                      </div>
+                      <p className="mt-1 text-sm text-slate-600">
+                        {notif.message}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-400">
+                        {formatDateTime(notif.created_at)}
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Send Notification Modal */}
+      {sendModalOpen && (
+        <Modal
+          title="Send Notification"
+          onClose={() => setSendModalOpen(false)}
+          className="max-w-xl"
+        >
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>Recipient Type</Label>
+              <Select
+                value={recipientType}
+                onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+                  setRecipientType(e.target.value as RecipientType)
+                }
+              >
+                <option value="all">All Users</option>
+                <option value="customers">All Customers</option>
+                <option value="technicians">All Approved Technicians</option>
+                <option value="specific">Specific User</option>
+              </Select>
+            </div>
+
+            {recipientType === 'specific' && (
+              <div className="space-y-1.5">
+                <Label>Select User</Label>
+                <Select
+                  value={specificUserId}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setSpecificUserId(e.target.value)}
+                >
+                  <option value="">Select a user...</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} ({u.role}) - {u.mobile}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <Label>Notification Type</Label>
+              <Select
+                value={notifType}
+                onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setNotifType(e.target.value)}
+              >
+                <option value="info">Info</option>
+                <option value="booking">Booking</option>
+                <option value="verification">Verification</option>
+                <option value="reminder">Reminder</option>
+                <option value="promotion">Promotion</option>
+                <option value="alert">Alert</option>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Title</Label>
+              <Input
+                placeholder="Notification title..."
+                value={notifTitle}
+                onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setNotifTitle(e.target.value)}
+                maxLength={100}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Message</Label>
+              <Textarea
+                placeholder="Notification message..."
+                value={notifMessage}
+                onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setNotifMessage(e.target.value)}
+                rows={4}
+                maxLength={500}
+              />
+              <p className="text-xs text-slate-400">
+                {notifMessage.length}/500 characters
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setSendModalOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button onClick={sendNotification} loading={sending}>
+                <Send className="mr-1 h-4 w-4" /> Send
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Broadcast Modal */}
+      {broadcastModalOpen && (
+        <Modal
+          title="Broadcast to All Users"
+          onClose={() => setBroadcastModalOpen(false)}
+          className="max-w-xl"
+        >
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 rounded-lg bg-purple-50 p-4">
+              <Megaphone className="h-5 w-5 shrink-0 text-purple-600" />
+              <div>
+                <p className="text-sm font-medium text-purple-900">
+                  Broadcast Notification
+                </p>
+                <p className="mt-1 text-xs text-purple-700">
+                  This will send a notification to ALL users on the platform
+                  (customers, technicians, and admins).
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Broadcast Title</Label>
+              <Input
+                placeholder="e.g., Important Announcement"
+                value={broadcastTitle}
+                onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setBroadcastTitle(e.target.value)}
+                maxLength={100}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Broadcast Message</Label>
+              <Textarea
+                placeholder="Type your broadcast message here..."
+                value={broadcastMessage}
+                onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setBroadcastMessage(e.target.value)}
+                rows={5}
+                maxLength={500}
+              />
+              <p className="text-xs text-slate-400">
+                {broadcastMessage.length}/500 characters
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setBroadcastModalOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={sendBroadcast}
+                loading={sending}
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                <Megaphone className="mr-1 h-4 w-4" /> Broadcast Now
+              </Button>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   )

@@ -1,120 +1,262 @@
-import { useEffect, useState, type FormEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { Loader as Loader2, Star } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
-import type { Booking, Review } from '@/lib/supabase'
-import { useAuth } from '@/lib/auth'
-import { useToast } from '@/hooks/use-toast'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { useEffect, useState } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
+import { Star, Loader2, Send, CheckCircle2, Wrench } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { LoadingScreen } from '@/components/LoadingScreen'
-import { cn, formatDate, sanitizeInput } from '@/lib/utils'
-import { createNotification, createAuditLog } from '@/lib/notifications'
+import { Button } from '@/components/ui/button'
+import { Textarea, Select } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
+import { useAuth } from '@/lib/auth'
+import { supabase, type Booking } from '@/lib/supabase'
+import { useToast } from '@/hooks/use-toast'
+import { cn, formatDate } from '@/lib/utils'
 
-export function CustomerReviewPage() {
+export default function CustomerReviewPage() {
   const { bookingId } = useParams<{ bookingId: string }>()
-  const { profile } = useAuth()
-  const { toast } = useToast()
-  const [loading, setLoading] = useState(true)
+  const { profile, session } = useAuth()
+  const navigate = useNavigate()
+  const toast = useToast()
+
   const [booking, setBooking] = useState<Booking | null>(null)
-  const [existingReview, setExistingReview] = useState<Review | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
   const [rating, setRating] = useState(0)
   const [hoverRating, setHoverRating] = useState(0)
   const [reviewText, setReviewText] = useState('')
-  const [submitting, setSubmitting] = useState(false)
+  const [existingReview, setExistingReview] = useState(false)
+
+  const userId = profile?.id || session?.user?.id
 
   useEffect(() => {
-    if (!bookingId) return
-    let mounted = true;
-    (async () => {
-      const { data: bk } = await supabase.from('bookings').select('*').eq('id', bookingId).maybeSingle()
-      if (!mounted) return
-      setBooking(bk as Booking | null)
-      if (bk) {
-        const { data: rev } = await supabase.from('reviews').select('*').eq('booking_id', bookingId).maybeSingle()
-        if (mounted && rev) { setExistingReview(rev as Review); setRating((rev as Review).rating); setReviewText((rev as Review).review_text || '') }
-      }
-      setLoading(false)
-    })()
-    return () => { mounted = false }
-  }, [bookingId])
+    if (!bookingId || !userId) return
+    let cancelled = false
+    async function load() {
+      try {
+        const { data, error } = await supabase
+          .from('bookings')
+          .select('*')
+          .eq('id', bookingId)
+          .eq('customer_id', userId)
+          .maybeSingle()
+        if (cancelled) return
+        if (error) throw error
+        setBooking((data as Booking) || null)
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault()
-    if (!profile || !booking) return
-    if (rating < 1 || rating > 5) { toast('Please select a rating', 'error'); return }
-    if (!reviewText.trim()) { toast('Please write a review', 'error'); return }
-    setSubmitting(true)
+        // Check if review already exists
+        if (data) {
+          const { data: reviewData } = await supabase
+            .from('reviews')
+            .select('id')
+            .eq('booking_id', bookingId)
+            .eq('customer_id', userId)
+            .maybeSingle()
+          if (reviewData) setExistingReview(true)
+        }
+      } catch {
+        // ignore
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [bookingId, userId])
+
+  const handleSubmit = async () => {
+    if (!bookingId || !userId || !booking) return
+    if (rating === 0) {
+      toast.warning('Rating required', 'Please select a star rating.')
+      return
+    }
+    if (!reviewText.trim()) {
+      toast.warning('Review required', 'Please write a review.')
+      return
+    }
     if (existingReview) {
-      const { error } = await supabase.from('reviews').update({ rating, review_text: sanitizeInput(reviewText) }).eq('id', existingReview.id)
+      toast.warning('Already reviewed', 'You have already reviewed this booking.')
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const { error } = await supabase.from('reviews').insert({
+        booking_id: bookingId,
+        customer_id: userId,
+        technician_id: booking.technician_id,
+        rating,
+        review_text: reviewText.trim(),
+      })
+
+      if (error) throw error
+
+      toast.success('Review submitted!', 'Thank you for your feedback.')
+      navigate('/dashboard/bookings')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to submit review.'
+      toast.error('Submission failed', message)
+    } finally {
       setSubmitting(false)
-      if (error) { toast(error.message, 'error'); return }
-      toast('Review updated successfully!', 'success')
-    } else {
-      const { data, error } = await supabase.from('reviews').insert({
-        booking_id: booking.id, customer_id: profile.id, technician_id: booking.technician_id,
-        rating, review_text: sanitizeInput(reviewText),
-      }).select().single()
-      setSubmitting(false)
-      if (error) { toast(error.message, 'error'); return }
-      setExistingReview(data as Review)
-      toast('Review submitted successfully!', 'success')
-      if (booking.technician_id) await createNotification(booking.technician_id, 'New Review', `You received a ${rating}-star review for ${booking.service_name}.`, 'review')
-      await createAuditLog(profile.id, 'review_submitted', 'booking', booking.id, `Submitted ${rating}-star review for booking ${booking.booking_number}`)
     }
   }
 
-  if (loading) return <LoadingScreen message="Loading..." />
+  if (loading) {
+    return (
+      <div className="flex h-[60vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+      </div>
+    )
+  }
 
-  if (!booking) return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Review</h1>
-      <Card><CardContent className="py-12 text-center"><p className="text-gray-500">Booking not found.</p><Link to="/customer/bookings" className="mt-4 inline-block text-blue-600 hover:text-blue-700">Back to Bookings</Link></CardContent></Card>
-    </div>
-  )
+  if (!booking) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Review Your Booking</h1>
+        </div>
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <Wrench className="h-12 w-12 text-slate-300" />
+            <p className="mt-3 text-lg font-medium text-slate-700">Booking not found</p>
+            <p className="mt-1 text-sm text-slate-500">This booking may not exist or doesn't belong to you.</p>
+            <Button onClick={() => navigate('/dashboard/bookings')} className="mt-4">
+              Back to Bookings
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
-  if (booking.status !== 'completed') return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Review</h1>
-      <Card><CardContent className="py-12 text-center"><p className="text-gray-500">You can only review completed bookings.</p><Link to="/customer/bookings" className="mt-4 inline-block text-blue-600 hover:text-blue-700">Back to Bookings</Link></CardContent></Card>
-    </div>
-  )
+  if (booking.status !== 'completed') {
+    return (
+      <div className="mx-auto max-w-2xl space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Review Your Booking</h1>
+        </div>
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <CheckCircle2 className="h-12 w-12 text-slate-300" />
+            <p className="mt-3 text-lg font-medium text-slate-700">Booking not completed yet</p>
+            <p className="mt-1 text-sm text-slate-500">
+              You can leave a review once the service is completed.
+            </p>
+            <Button onClick={() => navigate('/dashboard/bookings')} className="mt-4">
+              Back to Bookings
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (existingReview) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Review Your Booking</h1>
+        </div>
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <CheckCircle2 className="h-12 w-12 text-green-500" />
+            <p className="mt-3 text-lg font-medium text-slate-700">Review Already Submitted</p>
+            <p className="mt-1 text-sm text-slate-500">You have already reviewed this booking.</p>
+            <Button onClick={() => navigate('/dashboard/bookings')} className="mt-4">
+              Back to Bookings
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">{existingReview ? 'Edit Review' : 'Leave a Review'}</h1>
-        <Link to="/customer/bookings"><Button variant="outline">Back</Button></Link>
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">Review Your Booking</h1>
+        <p className="mt-1 text-sm text-slate-500">Share your experience to help others.</p>
       </div>
 
+      {/* Booking Info */}
       <Card>
-        <CardHeader><CardTitle>{booking.service_name}</CardTitle></CardHeader>
-        <CardContent>
-          <p className="text-sm text-gray-500">Booking #{booking.booking_number} • Completed on {formatDate(booking.scheduled_date)}</p>
+        <CardContent className="flex items-center gap-3 p-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-50">
+            <Wrench className="h-6 w-6 text-blue-600" />
+          </div>
+          <div>
+            <p className="font-semibold text-slate-900">{booking.service_name}</p>
+            <p className="text-xs text-slate-500">#{booking.booking_number}</p>
+            <p className="text-xs text-slate-500">{formatDate(booking.scheduled_date)}</p>
+          </div>
+          <Badge className="ml-auto bg-green-100 text-green-700">Completed</Badge>
         </CardContent>
       </Card>
 
+      {/* Review Form */}
       <Card>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4 py-4">
-            <div>
-              <Label>Rating *</Label>
-              <div className="mt-2 flex gap-1">
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <button key={n} type="button" onClick={() => setRating(n)} onMouseEnter={() => setHoverRating(n)} onMouseLeave={() => setHoverRating(0)} className="focus:outline-none">
-                    <Star className={cn('h-8 w-8 transition-colors', (hoverRating || rating) >= n ? 'fill-amber-400 text-amber-400' : 'text-gray-300')} />
-                  </button>
-                ))}
-              </div>
+        <CardHeader>
+          <CardTitle>Rate Your Experience</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Star Rating */}
+          <div className="space-y-2">
+            <Label>Rating *</Label>
+            <div className="flex items-center gap-1">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  type="button"
+                  onClick={() => setRating(star)}
+                  onMouseEnter={() => setHoverRating(star)}
+                  onMouseLeave={() => setHoverRating(0)}
+                  className="rounded p-1 transition-transform hover:scale-110"
+                >
+                  <Star
+                    className={cn(
+                      'h-8 w-8 transition-colors',
+                      (hoverRating || rating) >= star
+                        ? 'fill-amber-400 text-amber-400'
+                        : 'text-slate-300',
+                    )}
+                  />
+                </button>
+              ))}
+              <span className="ml-2 text-sm text-slate-500">
+                {rating > 0 ? `${rating} star${rating > 1 ? 's' : ''}` : 'Select rating'}
+              </span>
             </div>
-            <div>
-              <Label htmlFor="review_text">Your Review *</Label>
-              <Textarea id="review_text" required value={reviewText} onChange={(e) => setReviewText(e.target.value)} placeholder="Share your experience with the service..." rows={4} />
-            </div>
-            <Button type="submit" className="w-full" disabled={submitting}>{submitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Submitting...</> : existingReview ? 'Update Review' : 'Submit Review'}</Button>
-          </form>
+          </div>
+
+          {/* Review Text */}
+          <div className="space-y-2">
+            <Label htmlFor="review">Your Review *</Label>
+            <Textarea
+              id="review"
+              value={reviewText}
+              onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setReviewText(e.target.value)}
+              placeholder="Tell us about your experience with the service and technician..."
+              rows={5}
+            />
+          </div>
+
+          {/* Submit */}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => navigate('/dashboard/bookings')}>
+              Cancel
+            </Button>
+            <Button onClick={handleSubmit} disabled={submitting}>
+              {submitting ? (
+                <>
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin" /> Submitting...
+                </>
+              ) : (
+                <>
+                  <Send className="mr-1 h-4 w-4" /> Submit Review
+                </>
+              )}
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>
