@@ -1,6 +1,6 @@
-export const PRIMARY_PHONE = '9876543210'
-export const SUPPORT_PHONE = '9876543210'
-export const WHATSAPP_NUMBER = '919876543210'
+export const PRIMARY_PHONE = '8189800757'
+export const SUPPORT_PHONE = '8189800757'
+export const WHATSAPP_NUMBER = '918189800757'
 export const YOUTUBE_URL = 'https://www.youtube.com/@vattams'
 export const YOUTUBE_CHANNEL = '@vattams'
 
