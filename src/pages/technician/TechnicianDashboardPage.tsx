@@ -1,48 +1,42 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Wrench, CheckCircle, TrendingUp, Power, ArrowRight, BadgeCheck } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import type { Booking, TechnicianWallet } from '@/lib/supabase'
+import type { Booking, Profile, TechnicianWallet } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
 import { useToast } from '@/hooks/use-toast'
-import { cn, formatDate, formatCurrency, BOOKING_STATUS_COLORS, VERIFICATION_STATUS_COLORS, VERIFICATION_STATUS_LABELS } from '@/lib/utils'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { LoadingScreen } from '@/components/LoadingScreen'
-import { Calendar, CheckCircle, TrendingUp, Wrench, Power } from 'lucide-react'
+import { cn, formatDate, formatCurrency, BOOKING_STATUS_COLORS, VERIFICATION_STATUS_COLORS, VERIFICATION_STATUS_LABELS } from '@/lib/utils'
+
+type BookingWithCustomer = Booking & { customer: Profile | null }
+type Stats = { active: number; completed: number; totalEarnings: number }
 
 export function TechnicianDashboardPage() {
   const { profile } = useAuth()
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
-  const [bookings, setBookings] = useState<Booking[]>([])
+  const [stats, setStats] = useState<Stats>({ active: 0, completed: 0, totalEarnings: 0 })
+  const [bookings, setBookings] = useState<BookingWithCustomer[]>([])
   const [wallet, setWallet] = useState<TechnicianWallet | null>(null)
   const [toggling, setToggling] = useState(false)
-  const [stats, setStats] = useState({ active: 0, completed: 0, totalEarnings: 0 })
 
   useEffect(() => {
+    if (!profile) return
     let mounted = true;
     (async () => {
-      if (!profile) return
-      const { data: bks } = await supabase
-        .from('bookings')
-        .select('*')
-        .eq('technician_id', profile.id)
-        .order('created_at', { ascending: false })
-      if (!mounted || !bks) return
-      setBookings(bks as Booking[])
-      const active = bks.filter((b) => !['completed', 'cancelled'].includes(b.status)).length
-      const completed = bks.filter((b) => b.status === 'completed').length
-      const { data: w } = await supabase
-        .from('technician_wallets')
-        .select('*')
-        .eq('technician_id', profile.id)
-        .maybeSingle()
-      if (mounted && w) setWallet(w as TechnicianWallet)
-      if (mounted) {
-        setStats({ active, completed, totalEarnings: (w as TechnicianWallet)?.total_earnings || 0 })
-        setLoading(false)
-      }
+      const activeStatuses = ['assigned', 'accepted', 'on_the_way', 'arrived', 'work_started']
+      const { count: active } = await supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('technician_id', profile.id).in('status', activeStatuses)
+      const { count: completed } = await supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('technician_id', profile.id).eq('status', 'completed')
+      const { data: recentBookings } = await supabase.from('bookings').select('*, customer:customer_id(*)').eq('technician_id', profile.id).order('created_at', { ascending: false }).limit(5)
+      const { data: walletData } = await supabase.from('technician_wallets').select('*').eq('technician_id', profile.id).maybeSingle()
+      if (!mounted) return
+      setStats({ active: active || 0, completed: completed || 0, totalEarnings: walletData?.total_earnings || 0 })
+      setBookings((recentBookings || []) as BookingWithCustomer[])
+      setWallet(walletData as TechnicianWallet | null)
+      setLoading(false)
     })()
     return () => { mounted = false }
   }, [profile])
@@ -52,83 +46,82 @@ export function TechnicianDashboardPage() {
     setToggling(true)
     const newValue = !profile.is_available
     const { error } = await supabase.from('profiles').update({ is_available: newValue }).eq('id', profile.id)
-    if (error) { toast('Failed to update availability', 'error'); setToggling(false); return }
-    toast(newValue ? 'You are now available for jobs' : 'You are now unavailable', 'success')
     setToggling(false)
-    setStats((s) => ({ ...s }))
-    window.location.reload()
+    if (error) { toast('Failed to update availability', 'error'); return }
+    toast(newValue ? 'You are now available for jobs' : 'You are now unavailable', 'success')
+    setStats((s) => s) // trigger re-render
+    // Force profile refresh via window event
+    window.dispatchEvent(new Event('profile-updated'))
   }
 
   if (loading) return <LoadingScreen message="Loading dashboard..." />
+  if (!profile) return null
 
   const statCards = [
-    { label: 'Active Jobs', value: stats.active, icon: Calendar, color: 'text-blue-600 bg-blue-50' },
-    { label: 'Completed Jobs', value: stats.completed, icon: CheckCircle, color: 'text-green-600 bg-green-50' },
-    { label: 'Total Earnings', value: formatCurrency(stats.totalEarnings), icon: TrendingUp, color: 'text-purple-600 bg-purple-50' },
-    { label: 'Available Status', value: profile?.is_available ? 'Available' : 'Unavailable', icon: Power, color: profile?.is_available ? 'text-emerald-600 bg-emerald-50' : 'text-gray-600 bg-gray-100' },
+    { label: 'Active Jobs', value: stats.active, icon: Wrench, color: 'text-blue-600 bg-blue-100' },
+    { label: 'Completed Jobs', value: stats.completed, icon: CheckCircle, color: 'text-green-600 bg-green-100' },
+    { label: 'Total Earnings', value: formatCurrency(stats.totalEarnings), icon: TrendingUp, color: 'text-purple-600 bg-purple-100' },
+    { label: 'Available Status', value: profile.is_available ? 'Available' : 'Unavailable', icon: Power, color: profile.is_available ? 'text-green-600 bg-green-100' : 'text-red-600 bg-red-100' },
   ]
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Welcome, {profile?.name}!</h1>
-          <p className="text-gray-600">Here's your technician overview</p>
+          <h1 className="text-2xl font-bold text-gray-900">Welcome, {profile.name}!</h1>
+          <p className="text-sm text-gray-500">Here&apos;s an overview of your work</p>
         </div>
-        <Button variant={profile?.is_available ? 'danger' : 'primary'} onClick={toggleAvailability} disabled={toggling}>
-          <Power className="mr-2 h-4 w-4" />
-          {toggling ? 'Updating...' : profile?.is_available ? 'Go Unavailable' : 'Go Available'}
+        <Button variant={profile.is_available ? 'outline' : 'primary'} onClick={toggleAvailability} disabled={toggling}>
+          <Power className="mr-2 h-4 w-4" />{profile.is_available ? 'Go Unavailable' : 'Go Available'}
         </Button>
       </div>
 
-      {profile?.verification_status && (
+      {profile.verification_status && (
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-600">Verification:</span>
-          <Badge color={VERIFICATION_STATUS_COLORS[profile.verification_status]}>
+          <BadgeCheck className="h-5 w-5 text-gray-400" />
+          <span className="text-sm text-gray-500">Verification:</span>
+          <Badge color={VERIFICATION_STATUS_COLORS[profile.verification_status] || 'bg-gray-100 text-gray-700'}>
             {VERIFICATION_STATUS_LABELS[profile.verification_status] || profile.verification_status}
           </Badge>
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {statCards.map((s) => {
-          const Icon = s.icon
-          return (
-            <Card key={s.label}>
-              <CardContent className="flex items-center gap-4 p-4">
-                <div className={cn('rounded-lg p-3', s.color)}><Icon className="h-6 w-6" /></div>
-                <div>
-                  <p className="text-sm text-gray-600">{s.label}</p>
-                  <p className="text-xl font-bold text-gray-900">{s.value}</p>
-                </div>
-              </CardContent>
-            </Card>
-          )
-        })}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {statCards.map((s) => (
+          <Card key={s.label}>
+            <CardContent className="flex items-center gap-4 py-4">
+              <div className={cn('flex h-12 w-12 items-center justify-center rounded-lg', s.color)}><s.icon className="h-6 w-6" /></div>
+              <div><p className="text-2xl font-bold text-gray-900">{s.value}</p><p className="text-sm text-gray-500">{s.label}</p></div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Recent Jobs</CardTitle>
-          <Link to="/technician/jobs" className="text-sm text-blue-600 hover:underline">View All</Link>
+          <Link to="/technician/jobs" className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1">View All <ArrowRight className="h-4 w-4" /></Link>
         </CardHeader>
         <CardContent>
           {bookings.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 py-8 text-center">
-              <Wrench className="h-12 w-12 text-gray-300" />
+            <div className="py-8 text-center">
               <p className="text-gray-500">No jobs assigned yet.</p>
+              <p className="mt-1 text-sm text-gray-400">Make sure you are available to receive job assignments.</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {bookings.slice(0, 5).map((b) => (
-                <div key={b.id} className="flex items-center justify-between rounded-lg border border-gray-100 p-3">
-                  <div className="space-y-1">
-                    <p className="font-medium text-gray-900">{b.service_name}</p>
-                    <p className="text-sm text-gray-500">#{b.booking_number} · {formatDate(b.scheduled_date)}</p>
+              {bookings.map((b) => (
+                <div key={b.id} className="flex items-center justify-between rounded-lg border border-gray-200 p-3 hover:bg-gray-50">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-gray-900 truncate">{b.service_name}</p>
+                      <Badge color={BOOKING_STATUS_COLORS[b.status]}>{b.status.replace(/_/g, ' ')}</Badge>
+                    </div>
+                    <p className="mt-1 text-sm text-gray-500">{formatDate(b.scheduled_date)}{b.customer ? ` • ${b.customer.name}` : ''}</p>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium text-gray-900">{formatCurrency(b.amount)}</span>
-                    <Badge color={BOOKING_STATUS_COLORS[b.status]}>{b.status.replace(/_/g, ' ')}</Badge>
+                  <div className="ml-4 text-right">
+                    <p className="font-semibold text-gray-900">{formatCurrency(b.amount)}</p>
+                    <Link to="/technician/jobs" className="text-sm text-blue-600 hover:text-blue-700">View</Link>
                   </div>
                 </div>
               ))}

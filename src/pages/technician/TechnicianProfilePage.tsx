@@ -1,64 +1,59 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
+import { Loader2, Save, Power } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
 import { useToast } from '@/hooks/use-toast'
-import { sanitizeInput, VERIFICATION_STATUS_COLORS, VERIFICATION_STATUS_LABELS } from '@/lib/utils'
-import { createAuditLog } from '@/lib/notifications'
-import { TAMIL_NADU_DISTRICTS } from '@/lib/constants'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input, Textarea, Select } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { LoadingScreen } from '@/components/LoadingScreen'
-import { Mail, Phone, MapPin, Power } from 'lucide-react'
-import type { FormEvent } from 'react'
+import { cn, sanitizeInput, VERIFICATION_STATUS_COLORS, VERIFICATION_STATUS_LABELS } from '@/lib/utils'
+import { TAMIL_NADU_DISTRICTS } from '@/lib/constants'
+
+type FormState = {
+  name: string; mobile: string; experience: string; skills: string
+  bio: string; address: string; city: string; district: string; pincode: string
+}
 
 export function TechnicianProfilePage() {
   const { profile, refreshProfile } = useAuth()
   const { toast } = useToast()
-  const [loading, setLoading] = useState(false)
-  const [pageLoading, setPageLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [toggling, setToggling] = useState(false)
-  const [form, setForm] = useState({
-    name: '', mobile: '', experience: '', skills: '', bio: '',
-    address: '', city: '', district: '', pincode: '',
+  const [form, setForm] = useState<FormState>({
+    name: '', mobile: '', experience: '', skills: '', bio: '', address: '', city: '', district: '', pincode: '',
   })
 
   useEffect(() => {
-    if (profile) {
-      setForm({
-        name: profile.name || '', mobile: profile.mobile || '',
-        experience: profile.experience || '',
-        skills: (profile.skills || []).join(', '),
-        bio: profile.bio || '',
-        address: profile.address || '', city: profile.city || '',
-        district: profile.district || '', pincode: profile.pincode || '',
-      })
-    }
-    setPageLoading(false)
+    if (!profile) return
+    setForm({
+      name: profile.name || '', mobile: profile.mobile || '',
+      experience: profile.experience || '', skills: (profile.skills || []).join(', '),
+      bio: profile.bio || '', address: profile.address || '',
+      city: profile.city || '', district: profile.district || '', pincode: profile.pincode || '',
+    })
   }, [profile])
 
-  const handleChange = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }))
+  const set = (k: keyof FormState, v: string) => setForm((p) => ({ ...p, [k]: v }))
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (!profile) return
-    if (!form.name || !form.mobile) { toast('Name and mobile are required', 'warning'); return }
-    setLoading(true)
+    setSaving(true)
     const skillsArray = form.skills.split(',').map((s) => sanitizeInput(s)).filter(Boolean)
     const { error } = await supabase.from('profiles').update({
       name: sanitizeInput(form.name), mobile: sanitizeInput(form.mobile),
-      experience: sanitizeInput(form.experience), skills: skillsArray,
-      bio: sanitizeInput(form.bio), address: sanitizeInput(form.address),
-      city: sanitizeInput(form.city), district: form.district,
-      pincode: sanitizeInput(form.pincode),
+      experience: sanitizeInput(form.experience) || null, skills: skillsArray.length > 0 ? skillsArray : null,
+      bio: sanitizeInput(form.bio) || null, address: sanitizeInput(form.address) || null,
+      city: sanitizeInput(form.city) || null, district: form.district || null,
+      pincode: sanitizeInput(form.pincode) || null,
     }).eq('id', profile.id)
-    if (error) { toast('Failed to update profile', 'error'); setLoading(false); return }
-    await createAuditLog(profile.id, 'profile_updated', 'profile', profile.id, 'Technician updated profile')
+    setSaving(false)
+    if (error) { toast(error.message, 'error'); return }
     await refreshProfile()
-    toast('Profile updated successfully', 'success')
-    setLoading(false)
+    toast('Profile updated successfully!', 'success')
   }
 
   const toggleAvailability = async () => {
@@ -66,90 +61,57 @@ export function TechnicianProfilePage() {
     setToggling(true)
     const newValue = !profile.is_available
     const { error } = await supabase.from('profiles').update({ is_available: newValue }).eq('id', profile.id)
-    if (error) { toast('Failed to update availability', 'error'); setToggling(false); return }
+    setToggling(false)
+    if (error) { toast('Failed to update availability', 'error'); return }
     await refreshProfile()
     toast(newValue ? 'You are now available for jobs' : 'You are now unavailable', 'success')
-    setToggling(false)
   }
 
-  if (pageLoading) return <LoadingScreen message="Loading profile..." />
+  if (!profile) return <LoadingScreen message="Loading profile..." />
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">My Profile</h1>
+    <div className="mx-auto max-w-2xl space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900">My Profile</h1>
+        {profile.verification_status && (
+          <Badge color={VERIFICATION_STATUS_COLORS[profile.verification_status] || 'bg-gray-100 text-gray-700'}>
+            {VERIFICATION_STATUS_LABELS[profile.verification_status] || profile.verification_status}
+          </Badge>
+        )}
+      </div>
 
-      <Card className="max-w-md">
-        <CardHeader><CardTitle>Account Info</CardTitle></CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center gap-2 text-sm text-gray-600"><Mail className="h-4 w-4" />{profile?.email}</div>
-          <div className="flex items-center gap-2 text-sm text-gray-600"><Phone className="h-4 w-4" />{profile?.mobile}</div>
-          {profile?.address && <div className="flex items-center gap-2 text-sm text-gray-600"><MapPin className="h-4 w-4" />{profile.address}, {profile.city}, {profile.district}</div>}
-          {profile?.verification_status && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">Verification:</span>
-              <Badge color={VERIFICATION_STATUS_COLORS[profile.verification_status]}>
-                {VERIFICATION_STATUS_LABELS[profile.verification_status] || profile.verification_status}
-              </Badge>
+      <Card>
+        <CardHeader><CardTitle>Availability</CardTitle></CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium text-gray-900">{profile.is_available ? 'Available for Jobs' : 'Unavailable'}</p>
+              <p className="text-sm text-gray-500">Toggle your availability to receive new job assignments</p>
             </div>
-          )}
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-600">Availability:</span>
-            <Button size="sm" variant={profile?.is_available ? 'danger' : 'primary'} onClick={toggleAvailability} disabled={toggling}>
-              <Power className="mr-2 h-4 w-4" />
-              {toggling ? 'Updating...' : profile?.is_available ? 'Available (Disable)' : 'Unavailable (Enable)'}
+            <Button variant={profile.is_available ? 'outline' : 'primary'} onClick={toggleAvailability} disabled={toggling}>
+              <Power className="mr-2 h-4 w-4" />{toggling ? 'Updating...' : profile.is_available ? 'Go Unavailable' : 'Go Available'}
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      <Card className="max-w-md">
-        <CardHeader><CardTitle>Edit Profile</CardTitle></CardHeader>
+      <Card>
+        <CardHeader><CardTitle>Personal Information</CardTitle></CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <Label>Full Name *</Label>
-              <Input value={form.name} onChange={(e) => handleChange('name', e.target.value)} required />
+            <div><Label htmlFor="name">Full Name *</Label><Input id="name" required value={form.name} onChange={(e) => set('name', e.target.value)} /></div>
+            <div><Label htmlFor="mobile">Mobile Number *</Label><Input id="mobile" required pattern="[0-9]{10}" value={form.mobile} onChange={(e) => set('mobile', e.target.value)} placeholder="10-digit mobile number" /></div>
+            <div><Label htmlFor="email">Email</Label><Input id="email" value={profile.email} disabled className="bg-gray-50" /></div>
+            <div><Label htmlFor="experience">Experience</Label><Input id="experience" value={form.experience} onChange={(e) => set('experience', e.target.value)} placeholder="e.g. 5 years" /></div>
+            <div><Label htmlFor="skills">Skills</Label><Input id="skills" value={form.skills} onChange={(e) => set('skills', e.target.value)} placeholder="Comma-separated, e.g. Plumbing, Electrical, Carpentry" /></div>
+            <div><Label htmlFor="bio">Bio</Label><Textarea id="bio" rows={3} value={form.bio} onChange={(e) => set('bio', e.target.value)} placeholder="Tell customers about yourself" /></div>
+            <div><Label htmlFor="address">Address</Label><Textarea id="address" rows={2} value={form.address} onChange={(e) => set('address', e.target.value)} placeholder="Street address" /></div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div><Label htmlFor="city">City</Label><Input id="city" value={form.city} onChange={(e) => set('city', e.target.value)} placeholder="City" /></div>
+              <div><Label htmlFor="district">District</Label><Select id="district" value={form.district} onChange={(e) => set('district', e.target.value)}><option value="">Select district</option>{TAMIL_NADU_DISTRICTS.map((d) => <option key={d} value={d}>{d}</option>)}</Select></div>
             </div>
-            <div>
-              <Label>Mobile *</Label>
-              <Input value={form.mobile} onChange={(e) => handleChange('mobile', e.target.value)} maxLength={10} required />
-            </div>
-            <div>
-              <Label>Experience (years)</Label>
-              <Input value={form.experience} onChange={(e) => handleChange('experience', e.target.value)} placeholder="e.g. 5" />
-            </div>
-            <div>
-              <Label>Skills (comma-separated)</Label>
-              <Input value={form.skills} onChange={(e) => handleChange('skills', e.target.value)} placeholder="e.g. Plumbing, Electrical, Carpentry" />
-            </div>
-            <div>
-              <Label>Bio</Label>
-              <Textarea value={form.bio} onChange={(e) => handleChange('bio', e.target.value)} placeholder="Brief description of your experience" rows={3} />
-            </div>
-            <div>
-              <Label>Address</Label>
-              <Input value={form.address} onChange={(e) => handleChange('address', e.target.value)} placeholder="Street address" />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>City</Label>
-                <Input value={form.city} onChange={(e) => handleChange('city', e.target.value)} placeholder="City" />
-              </div>
-              <div>
-                <Label>District</Label>
-                <Select value={form.district} onChange={(e) => handleChange('district', e.target.value)}>
-                  <option value="">Select District</option>
-                  {TAMIL_NADU_DISTRICTS.map((d) => <option key={d} value={d}>{d}</option>)}
-                </Select>
-              </div>
-            </div>
-            <div>
-              <Label>Pincode</Label>
-              <Input value={form.pincode} onChange={(e) => handleChange('pincode', e.target.value)} maxLength={6} placeholder="6-digit pincode" />
-            </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Saving...' : 'Save Changes'}
-            </Button>
+            <div><Label htmlFor="pincode">Pincode</Label><Input id="pincode" pattern="[0-9]{6}" value={form.pincode} onChange={(e) => set('pincode', e.target.value)} placeholder="6-digit pincode" /></div>
+            <Button type="submit" className="w-full" disabled={saving}>{saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</> : <><Save className="mr-2 h-4 w-4" />Save Changes</>}</Button>
           </form>
         </CardContent>
       </Card>

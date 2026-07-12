@@ -1,12 +1,13 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { Mail, ArrowLeft } from 'lucide-react'
+import { Loader2, MailCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { supabase } from '@/lib/supabase'
 import { useToast } from '@/hooks/use-toast'
+import { sanitizeInput } from '@/lib/utils'
 
 export function ForgotPasswordPage() {
   const { toast } = useToast()
@@ -17,47 +18,57 @@ export function ForgotPasswordPage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: `${window.location.origin}/login`,
-    })
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim())
     setLoading(false)
-    if (error) { toast(error.message, 'error'); return }
+    if (error) {
+      toast(error.message, 'error')
+      return
+    }
     setSent(true)
-    toast('Password reset link sent to your email.', 'success')
+    toast('Password reset link sent to your email!', 'success')
   }
 
   return (
-    <div className="mx-auto max-w-md px-4 py-12">
-      <Card>
+    <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center px-4 py-12">
+      <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Mail className="h-5 w-5" /> Forgot Password</CardTitle>
+          <CardTitle className="text-center">Forgot Password</CardTitle>
+          <p className="text-center text-sm text-gray-500">
+            Enter your email and we&apos;ll send you a reset link.
+          </p>
         </CardHeader>
         <CardContent>
           {sent ? (
-            <div className="space-y-4">
-              <p className="text-sm text-gray-600">
-                We've sent a password reset link to <span className="font-medium text-gray-900">{email}</span>.
-                Check your inbox and follow the instructions to reset your password.
-              </p>
-              <Link to="/login"><Button variant="outline" className="w-full"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Login</Button></Link>
+            <div className="flex flex-col items-center gap-4 py-4 text-center">
+              <MailCheck className="h-12 w-12 text-green-600" />
+              <div>
+                <p className="font-medium text-gray-900">Check your email</p>
+                <p className="mt-1 text-sm text-gray-600">
+                  We&apos;ve sent a password reset link to <strong>{email}</strong>.
+                  Please check your inbox and follow the instructions.
+                </p>
+              </div>
+              <Link to="/login" className="mt-2">
+                <Button variant="outline">Back to Login</Button>
+              </Link>
             </div>
           ) : (
             <>
-              <p className="mb-4 text-sm text-gray-600">
-                Enter your email address and we'll send you a link to reset your password.
-              </p>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
+                  <Input id="email" type="email" required value={email}
+                    onChange={(e) => setEmail(sanitizeInput(e.target.value))}
+                    placeholder="you@example.com" />
                 </div>
-                <Button type="submit" disabled={loading} className="w-full">
-                  {loading ? 'Sending...' : 'Send Reset Link'}
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Sending...</> : 'Send Reset Link'}
                 </Button>
               </form>
-              <Link to="/login" className="mt-4 flex items-center justify-center gap-1 text-sm text-blue-600 hover:text-blue-700">
-                <ArrowLeft className="h-4 w-4" /> Back to Login
-              </Link>
+              <div className="mt-4 text-center text-sm text-gray-500">
+                Remembered your password?{' '}
+                <Link to="/login" className="text-blue-600 hover:text-blue-700">Sign in</Link>
+              </div>
             </>
           )}
         </CardContent>

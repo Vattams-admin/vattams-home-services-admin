@@ -1,13 +1,14 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { LogIn } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
 import { useToast } from '@/hooks/use-toast'
+import { sanitizeInput } from '@/lib/utils'
+import { supabase } from '@/lib/supabase'
 
 export function LoginPage() {
   const { signIn } = useAuth()
@@ -22,55 +23,59 @@ export function LoginPage() {
     setLoading(true)
     const { error } = await signIn(email.trim(), password)
     if (error) {
-      setLoading(false)
       toast(error, 'error')
+      setLoading(false)
       return
     }
-    toast('Welcome back!', 'success')
-    // Redirect based on role
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session) {
-        const { data } = await supabase.from('profiles').select('role').eq('id', session.user.id).maybeSingle()
-        const role = (data as { role?: string } | null)?.role
-        const path = role === 'admin' || role === 'super_admin' ? '/admin/dashboard' : role === 'technician' ? '/technician/dashboard' : '/customer/dashboard'
-        navigate(path, { replace: true })
-        return
-      }
-    } catch { /* fall through */ }
-    setLoading(false)
-    navigate('/dashboard', { replace: true })
+    toast('Login successful!', 'success')
+    // Redirect based on role — fetch profile to determine
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session) {
+      const { data } = await supabase.from('profiles').select('role').eq('id', session.user.id).maybeSingle()
+      const role = data?.role
+      if (role === 'admin' || role === 'super_admin') navigate('/admin/dashboard')
+      else if (role === 'technician') navigate('/technician/dashboard')
+      else navigate('/customer/dashboard')
+    } else {
+      navigate('/dashboard')
+    }
   }
 
   return (
-    <div className="mx-auto max-w-md px-4 py-12">
-      <Card>
+    <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center px-4 py-12">
+      <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><LogIn className="h-5 w-5" /> Login to VATTAMS</CardTitle>
+          <CardTitle className="text-center">Welcome Back</CardTitle>
+          <p className="text-center text-sm text-gray-500">Sign in to your VATTAMS account</p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
+              <Input id="email" type="email" required value={email}
+                onChange={(e) => setEmail(sanitizeInput(e.target.value))}
+                placeholder="you@example.com" />
             </div>
             <div>
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password" />
+              <Input id="password" type="password" required value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Your password" />
             </div>
-            <Button type="submit" disabled={loading} className="w-full">
-              {loading ? 'Signing in...' : 'Sign In'}
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Signing in...</> : 'Sign In'}
             </Button>
           </form>
-
           <div className="mt-4 space-y-2 text-center text-sm">
-            <Link to="/forgot-password" className="block text-blue-600 hover:text-blue-700">Forgot password?</Link>
-            <div className="text-gray-600">
-              Don't have an account?{' '}
-              <Link to="/register/customer" className="font-medium text-blue-600 hover:text-blue-700">Register as Customer</Link>
-              {' · '}
-              <Link to="/register/technician" className="font-medium text-blue-600 hover:text-blue-700">Technician</Link>
-            </div>
+            <Link to="/forgot-password" className="text-blue-600 hover:text-blue-700">
+              Forgot password?
+            </Link>
+            <p className="text-gray-500">
+              Don&apos;t have an account?{' '}
+              <Link to="/register/customer" className="text-blue-600 hover:text-blue-700">Register as Customer</Link>
+              {' / '}
+              <Link to="/register/technician" className="text-blue-600 hover:text-blue-700">Technician</Link>
+            </p>
           </div>
         </CardContent>
       </Card>

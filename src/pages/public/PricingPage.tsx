@@ -1,103 +1,102 @@
 import { Link } from 'react-router-dom'
-import { Check } from 'lucide-react'
+import { Check, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatCurrency } from '@/lib/utils'
 
-const plans = [
+type Plan = {
+  name: string; price: number; period: string; popular?: boolean
+  desc: string; features: string[]
+}
+
+const plans: Plan[] = [
   {
-    category: 'AC Services',
-    icon: '❄️',
-    popular: false,
-    services: [
-      { name: 'AC Deep Cleaning', price: 499 },
-      { name: 'AC Gas Refill', price: 1499 },
-      { name: 'AC Installation', price: 799 },
-      { name: 'AC Repair (General)', price: 399 },
-    ],
+    name: 'Basic Repair', price: 249, period: 'per visit', desc: 'One-time repair for minor issues.',
+    features: ['Single issue diagnosis', 'Basic repair work', 'Up to 1 hour service', '7-day service warranty', 'All major brands'],
   },
   {
-    category: 'Appliance Repair',
-    icon: '🔧',
-    popular: true,
-    services: [
-      { name: 'Washing Machine Service', price: 399 },
-      { name: 'Refrigerator Repair', price: 449 },
-      { name: 'Microwave Repair', price: 349 },
-      { name: 'Water Heater Service', price: 399 },
-    ],
+    name: 'Standard Service', price: 499, period: 'per visit', popular: true, desc: 'Complete service for regular maintenance.',
+    features: ['Full diagnosis & inspection', 'Comprehensive service', 'Up to 2 hours service', '30-day service warranty', 'Genuine parts used', 'Priority support'],
   },
   {
-    category: 'Home Maintenance',
-    icon: '🏠',
-    popular: false,
-    services: [
-      { name: 'Plumbing Service', price: 299 },
-      { name: 'Electrical Work', price: 299 },
-      { name: 'General Repair', price: 249 },
-      { name: 'CCTV Installation', price: 999 },
-    ],
+    name: 'Annual Maintenance', price: 1999, period: 'per year', desc: 'Year-round maintenance and priority service.',
+    features: ['4 scheduled visits', 'Unlimited minor repairs', '15% off on spare parts', 'Priority booking', '12-month coverage', 'Dedicated technician'],
   },
 ]
 
-const features = [
-  'Verified & background-checked technicians',
-  'Upfront pricing with no hidden charges',
-  'Service warranty on all repairs',
-  'Easy online booking and tracking',
+const categoryPricing = [
+  { category: 'AC Service', items: [{ name: 'AC General Service', price: 499 }, { name: 'AC Gas Refill', price: 1499 }, { name: 'AC Installation', price: 999 }] },
+  { category: 'Washing Machine', items: [{ name: 'Inspection & Minor Repair', price: 399 }, { name: 'Drum/Motor Repair', price: 899 }, { name: 'Full Service', price: 699 }] },
+  { category: 'Refrigerator', items: [{ name: 'Cooling Issue Diagnosis', price: 449 }, { name: 'Gas Refill', price: 1299 }, { name: 'Compressor Replacement', price: 2499 }] },
+  { category: 'Plumbing', items: [{ name: 'Leak Repair', price: 299 }, { name: 'Tap/Mixer Fitting', price: 349 }, { name: 'Motor Service', price: 599 }] },
+  { category: 'Electrical', items: [{ name: 'Switchboard Repair', price: 299 }, { name: 'Fan Installation', price: 399 }, { name: 'Wiring (per point)', price: 449 }] },
+  { category: 'CCTV Installation', items: [{ name: '2-Camera Setup', price: 2999 }, { name: '4-Camera Setup', price: 4999 }, { name: 'DVR Configuration', price: 999 }] },
 ]
 
 export function PricingPage() {
   return (
-    <div className="mx-auto max-w-7xl px-4 py-12">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold text-gray-900">Transparent Pricing</h1>
-        <p className="mt-3 text-lg text-gray-600">
-          Fair, upfront pricing for every service. No hidden charges.
-        </p>
-      </div>
+    <div className="py-12">
+      <div className="mx-auto max-w-7xl px-4">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold text-gray-900 md:text-4xl">Transparent Pricing</h1>
+          <p className="mx-auto mt-3 max-w-2xl text-gray-600">
+            No hidden charges. Pay only for what you need with clear, upfront pricing.
+          </p>
+        </div>
 
-      <div className="mt-12 grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {plans.map((plan) => (
-          <Card key={plan.category} className={plan.popular ? 'border-blue-600 ring-2 ring-blue-600' : ''}>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-xl">{plan.category}</CardTitle>
-                {plan.popular && (
-                  <span className="rounded-full bg-blue-600 px-3 py-1 text-xs font-medium text-white">Popular</span>
-                )}
-              </div>
-              <span className="text-3xl">{plan.icon}</span>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-3">
-                {plan.services.map((s) => (
-                  <li key={s.name} className="flex items-center justify-between border-b border-gray-100 pb-3">
-                    <span className="text-sm text-gray-700">{s.name}</span>
-                    <span className="text-sm font-semibold text-gray-900">{formatCurrency(s.price)}</span>
-                  </li>
-                ))}
-              </ul>
-              <Link to="/register/customer" className="mt-6 block">
-                <Button className="w-full" variant={plan.popular ? 'primary' : 'outline'}>Book Now</Button>
-              </Link>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <div className="mt-16 rounded-lg bg-gray-50 p-8">
-        <h2 className="text-center text-2xl font-bold text-gray-900">What's Included</h2>
-        <div className="mx-auto mt-6 grid max-w-3xl grid-cols-1 gap-4 sm:grid-cols-2">
-          {features.map((f) => (
-            <div key={f} className="flex items-center gap-3">
-              <span className="rounded-full bg-green-100 p-1"><Check className="h-4 w-4 text-green-600" /></span>
-              <span className="text-sm text-gray-700">{f}</span>
-            </div>
+        <div className="mt-10 grid gap-6 md:grid-cols-3">
+          {plans.map((p) => (
+            <Card key={p.name} className={p.popular ? 'border-blue-600 ring-2 ring-blue-600' : ''}>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle>{p.name}</CardTitle>
+                  {p.popular && <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700">Popular</span>}
+                </div>
+                <p className="text-sm text-gray-500">{p.desc}</p>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-3xl font-bold text-gray-900">{formatCurrency(p.price)}</span>
+                  <span className="text-sm text-gray-500">{p.period}</span>
+                </div>
+                <ul className="mt-5 space-y-3">
+                  {p.features.map((f) => (
+                    <li key={f} className="flex items-start gap-2 text-sm text-gray-600">
+                      <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-green-600" />
+                      <span>{f}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Link to="/register/customer" className="mt-6 block">
+                  <Button className="w-full" variant={p.popular ? 'primary' : 'outline'}>
+                    Book Now <ArrowRight className="ml-1 h-4 w-4" />
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
           ))}
         </div>
-        <p className="mt-6 text-center text-sm text-gray-500">
-          * Prices may vary based on complexity and parts required. Final quote provided before service begins.
+
+        <h2 className="mt-16 text-center text-2xl font-bold text-gray-900">Service Price List</h2>
+        <div className="mt-8 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {categoryPricing.map((cat) => (
+            <Card key={cat.category}>
+              <CardHeader><CardTitle className="text-base">{cat.category}</CardTitle></CardHeader>
+              <CardContent>
+                <ul className="space-y-2">
+                  {cat.items.map((it) => (
+                    <li key={it.name} className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">{it.name}</span>
+                      <span className="font-medium text-gray-900">{formatCurrency(it.price)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <p className="mt-8 text-center text-sm text-gray-500">
+          * Prices may vary based on location and complexity. Final quote provided before service.
         </p>
       </div>
     </div>

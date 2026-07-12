@@ -1,52 +1,44 @@
 import { useEffect, useState } from 'react'
+import { Eye, ArrowRightCircle, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Booking, Profile, BookingStatus, TechnicianWallet } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
 import { useToast } from '@/hooks/use-toast'
-import { cn, formatDate, formatCurrency, BOOKING_STATUS_FLOW, BOOKING_STATUS_COLORS } from '@/lib/utils'
-import { createNotification, createAuditLog, createRevenueTransaction } from '@/lib/notifications'
-import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Modal } from '@/components/ui/modal'
 import { LoadingScreen } from '@/components/LoadingScreen'
-import { Eye, MapPin, ArrowRight } from 'lucide-react'
+import { cn, formatDate, formatCurrency, BOOKING_STATUS_FLOW, BOOKING_STATUS_COLORS, sanitizeInput } from '@/lib/utils'
+import { createNotification, createAuditLog } from '@/lib/notifications'
 
-type FilterTab = 'all' | 'assigned' | 'active' | 'completed' | 'cancelled'
+type BookingWithCustomer = Booking & { customer: Profile | null }
+type Tab = 'all' | 'assigned' | 'active' | 'completed' | 'cancelled'
 
-const ACTIVE_STATUSES: BookingStatus[] = ['accepted', 'on_the_way', 'arrived', 'work_started']
+const tabs: { key: Tab; label: string }[] = [
+  { key: 'all', label: 'All' }, { key: 'assigned', label: 'Assigned' },
+  { key: 'active', label: 'Active' }, { key: 'completed', label: 'Completed' },
+  { key: 'cancelled', label: 'Cancelled' },
+]
+const activeStatuses: BookingStatus[] = ['accepted', 'on_the_way', 'arrived', 'work_started']
 
 export function TechnicianJobsPage() {
   const { profile } = useAuth()
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
-  const [bookings, setBookings] = useState<Booking[]>([])
-  const [custMap, setCustMap] = useState<Record<string, Profile>>({})
-  const [tab, setTab] = useState<FilterTab>('all')
-  const [selected, setSelected] = useState<Booking | null>(null)
+  const [bookings, setBookings] = useState<BookingWithCustomer[]>([])
+  const [tab, setTab] = useState<Tab>('all')
+  const [selected, setSelected] = useState<BookingWithCustomer | null>(null)
   const [updating, setUpdating] = useState(false)
 
   useEffect(() => {
+    if (!profile) return
     let mounted = true;
     (async () => {
-      if (!profile) return
-      const { data } = await supabase
-        .from('bookings')
-        .select('*')
-        .eq('technician_id', profile.id)
-        .order('created_at', { ascending: false })
-      if (!mounted || !data) return
-      setBookings(data as Booking[])
-      const custIds = [...new Set(data.map((b) => b.customer_id).filter(Boolean))] as string[]
-      if (custIds.length) {
-        const { data: custs } = await supabase.from('profiles').select('*').in('id', custIds)
-        if (mounted && custs) {
-          const m: Record<string, Profile> = {}
-          custs.forEach((c) => { m[c.id] = c as Profile })
-          setCustMap(m)
-        }
-      }
-      if (mounted) setLoading(false)
+      const { data } = await supabase.from('bookings').select('*, customer:customer_id(*)').eq('technician_id', profile.id).order('created_at', { ascending: false })
+      if (!mounted) return
+      setBookings((data || []) as BookingWithCustomer[])
+      setLoading(false)
     })()
     return () => { mounted = false }
   }, [profile])
@@ -54,127 +46,111 @@ export function TechnicianJobsPage() {
   const filtered = bookings.filter((b) => {
     if (tab === 'all') return true
     if (tab === 'assigned') return b.status === 'assigned'
-    if (tab === 'active') return ACTIVE_STATUSES.includes(b.status)
+    if (tab === 'active') return activeStatuses.includes(b.status)
     if (tab === 'completed') return b.status === 'completed'
     if (tab === 'cancelled') return b.status === 'cancelled'
     return true
   })
 
-  const nextStatus = (current: BookingStatus): BookingStatus | null => {
-    const idx = BOOKING_STATUS_FLOW.indexOf(current)
+  const nextStatus = (status: BookingStatus): BookingStatus | null => {
+    const idx = BOOKING_STATUS_FLOW.indexOf(status)
     if (idx === -1 || idx >= BOOKING_STATUS_FLOW.length - 1) return null
     return BOOKING_STATUS_FLOW[idx + 1]
   }
 
-  const statusLabel = (s: BookingStatus) => s.replace(/_/g, ' ')
-
-  const handleUpdateStatus = async (booking: Booking) => {
+  const advanceStatus = async (booking: BookingWithCustomer) => {
     if (!profile) return
     const next = nextStatus(booking.status)
     if (!next) return
     setUpdating(true)
-    const { error } = await supabase.from('bookings').update({ status: next }).eq('id', booking.id)
-    if (error) { toast('Failed to update status', 'error'); setUpdating(false); return }
-    setBookings((bs) => bs.map((b) => b.id === booking.id ? { ...b, status: next } : b))
-    await createNotification(booking.customer_id, 'Booking Status Updated', `Your booking #${booking.booking_number} is now: ${statusLabel(next)}.`)
-    await createAuditLog(profile.id, 'booking_status_updated', 'booking', booking.id, `Status updated to ${next}`)
-    if (next === 'completed') {
-      const { data: w } = await supabase.from('technician_wallets').select('*').eq('technician_id', profile.id).maybeSingle()
-      const wallet = w as TechnicianWallet | null
-      if (wallet) {
-        await supabase.from('technician_wallets').update({
-          completed_jobs: (wallet.completed_jobs || 0) + 1,
-          total_earnings: (wallet.total_earnings || 0) + booking.amount,
-          total_jobs: (wallet.total_jobs || 0) + 1,
-        }).eq('id', wallet.id)
-      }
-      await createRevenueTransaction('technician_earning', booking.amount, profile.id, booking.id, `Earning from booking #${booking.booking_number}`)
-    }
-    toast(`Status updated to ${statusLabel(next)}`, 'success')
+    const { error } = await supabase.from('bookings').update({ status: next, updated_at: new Date().toISOString() }).eq('id', booking.id)
+    if (error) { setUpdating(false); toast('Failed to update status', 'error'); return }
+
+    setBookings((prev) => prev.map((b) => b.id === booking.id ? { ...b, status: next } : b))
     setSelected((s) => s && s.id === booking.id ? { ...s, status: next } : s)
+    toast(`Status updated to ${next.replace(/_/g, ' ')}`, 'success')
+
+    await createNotification(booking.customer_id, 'Booking Status Updated', `Your booking ${booking.booking_number} status is now ${next.replace(/_/g, ' ')}.`, 'booking')
+    await createAuditLog(profile.id, 'booking_status_updated', 'booking', booking.id, `Technician updated booking ${booking.booking_number} to ${next}`)
+
+    if (next === 'completed') {
+      const { data: wallet } = await supabase.from('technician_wallets').select('*').eq('technician_id', profile.id).maybeSingle()
+      if (wallet) {
+        const newCompleted = (wallet.completed_jobs || 0) + 1
+        const newEarnings = (wallet.total_earnings || 0) + booking.amount
+        await supabase.from('technician_wallets').update({ completed_jobs: newCompleted, total_earnings: newEarnings }).eq('technician_id', profile.id)
+      }
+    }
     setUpdating(false)
   }
 
   if (loading) return <LoadingScreen message="Loading jobs..." />
-
-  const tabs: { key: FilterTab; label: string }[] = [
-    { key: 'all', label: 'All' }, { key: 'assigned', label: 'Assigned' },
-    { key: 'active', label: 'Active' }, { key: 'completed', label: 'Completed' },
-    { key: 'cancelled', label: 'Cancelled' },
-  ]
+  if (!profile) return null
 
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">My Jobs</h1>
 
-      <div className="flex gap-2 border-b border-gray-200 overflow-x-auto">
+      <div className="flex gap-2 overflow-x-auto">
         {tabs.map((t) => (
-          <button key={t.key} onClick={() => setTab(t.key)}
-            className={cn('px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap',
-              tab === t.key ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700')}>
-            {t.label}
-          </button>
+          <button key={t.key} onClick={() => setTab(t.key)} className={cn('whitespace-nowrap rounded-md px-4 py-2 text-sm font-medium transition-colors', tab === t.key ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50')}>{t.label}</button>
         ))}
       </div>
 
       {filtered.length === 0 ? (
-        <Card><CardContent className="py-12 text-center text-gray-500">No jobs found in this category.</CardContent></Card>
+        <Card><CardContent className="py-12 text-center"><p className="text-gray-500">No jobs found in this category.</p></CardContent></Card>
       ) : (
         <div className="space-y-3">
-          {filtered.map((b) => {
-            const next = nextStatus(b.status)
-            const cust = custMap[b.customer_id]
-            return (
-              <Card key={b.id}>
-                <CardContent className="flex items-center justify-between p-4">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium text-gray-900">{b.service_name}</p>
-                      <Badge color={BOOKING_STATUS_COLORS[b.status]}>{statusLabel(b.status)}</Badge>
-                    </div>
-                    <p className="text-sm text-gray-500">#{b.booking_number} · {formatDate(b.scheduled_date)}{b.scheduled_time ? ` · ${b.scheduled_time}` : ''}</p>
-                    {cust && <p className="text-sm text-gray-500">Customer: {cust.name}</p>}
-                    <p className="text-sm text-gray-500"><MapPin className="mr-1 inline h-3 w-3" />{b.address}, {b.city}, {b.district}</p>
+          {filtered.map((b) => (
+            <Card key={b.id}>
+              <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-xs text-gray-400">#{b.booking_number}</span>
+                    <p className="font-medium text-gray-900">{b.service_name}</p>
+                    <Badge color={BOOKING_STATUS_COLORS[b.status]}>{b.status.replace(/_/g, ' ')}</Badge>
                   </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <span className="font-semibold text-gray-900">{formatCurrency(b.amount)}</span>
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="outline" onClick={() => setSelected(b)}><Eye className="mr-1 h-4 w-4" />Details</Button>
-                      {next && (
-                        <Button size="sm" onClick={() => handleUpdateStatus(b)} disabled={updating}>
-                          {statusLabel(next)} <ArrowRight className="ml-1 h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
+                  <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500">
+                    <span>{b.customer?.name || 'Unknown customer'}</span>
+                    <span>{formatDate(b.scheduled_date)}{b.scheduled_time ? ` ${b.scheduled_time}` : ''}</span>
+                    <span className="truncate">{sanitizeInput(b.address)}, {b.city}</span>
+                    <span className="font-semibold text-gray-700">{formatCurrency(b.amount)}</span>
                   </div>
-                </CardContent>
-              </Card>
-            )
-          })}
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setSelected(b)}><Eye className="mr-1 h-4 w-4" />Details</Button>
+                  {nextStatus(b.status) && b.status !== 'cancelled' && (
+                    <Button size="sm" onClick={() => advanceStatus(b)} disabled={updating}>
+                      <ArrowRightCircle className="mr-1 h-4 w-4" />Mark as {nextStatus(b.status)?.replace(/_/g, ' ')}
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       )}
 
-      <Modal open={!!selected} onClose={() => setSelected(null)} title="Job Details">
+      <Modal open={!!selected} onClose={() => setSelected(null)} title={`Booking #${selected?.booking_number || ''}`}>
         {selected && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="font-medium text-gray-900">{selected.service_name}</span>
-              <Badge color={BOOKING_STATUS_COLORS[selected.status]}>{statusLabel(selected.status)}</Badge>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div><p className="text-gray-500">Service</p><p className="font-medium">{selected.service_name}</p></div>
+              <div><p className="text-gray-500">Status</p><Badge color={BOOKING_STATUS_COLORS[selected.status]}>{selected.status.replace(/_/g, ' ')}</Badge></div>
+              <div><p className="text-gray-500">Customer</p><p className="font-medium">{selected.customer?.name || 'Unknown'}</p></div>
+              <div><p className="text-gray-500">Amount</p><p className="font-medium">{formatCurrency(selected.amount)}</p></div>
+              <div><p className="text-gray-500">Scheduled Date</p><p className="font-medium">{formatDate(selected.scheduled_date)}</p></div>
+              <div><p className="text-gray-500">Time</p><p className="font-medium">{selected.scheduled_time || 'Not specified'}</p></div>
+              <div className="col-span-2"><p className="text-gray-500">Address</p><p className="font-medium">{sanitizeInput(selected.address)}, {selected.city}, {selected.district} - {selected.pincode}</p></div>
+              {selected.customer_notes && <div className="col-span-2"><p className="text-gray-500">Notes</p><p className="font-medium">{sanitizeInput(selected.customer_notes)}</p></div>}
             </div>
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <p className="text-gray-500">Booking #</p><p className="text-gray-900">{selected.booking_number}</p>
-              <p className="text-gray-500">Date</p><p className="text-gray-900">{formatDate(selected.scheduled_date)}</p>
-              <p className="text-gray-500">Time</p><p className="text-gray-900">{selected.scheduled_time || 'Not set'}</p>
-              <p className="text-gray-500">Address</p><p className="text-gray-900">{selected.address}</p>
-              <p className="text-gray-500">City</p><p className="text-gray-900">{selected.city}, {selected.district} - {selected.pincode}</p>
-              <p className="text-gray-500">Amount</p><p className="text-gray-900">{formatCurrency(selected.amount)}</p>
-              {custMap[selected.customer_id] && (<><p className="text-gray-500">Customer</p><p className="text-gray-900">{custMap[selected.customer_id].name}</p></>)}
-              {selected.customer_notes && (<><p className="text-gray-500">Notes</p><p className="text-gray-900">{selected.customer_notes}</p></>)}
-            </div>
-            {nextStatus(selected.status) && (
-              <Button className="w-full" onClick={() => handleUpdateStatus(selected)} disabled={updating}>
-                {updating ? 'Updating...' : `Mark as ${statusLabel(nextStatus(selected.status)!)}`}
-              </Button>
+            {nextStatus(selected.status) && selected.status !== 'cancelled' && (
+              <div className="flex justify-end gap-2 border-t pt-4">
+                <Button variant="outline" onClick={() => setSelected(null)}>Close</Button>
+                <Button onClick={() => advanceStatus(selected)} disabled={updating}>
+                  {updating ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Updating...</> : <><ArrowRightCircle className="mr-2 h-4 w-4" />Mark as {nextStatus(selected.status)?.replace(/_/g, ' ')}</>}
+                </Button>
+              </div>
             )}
           </div>
         )}

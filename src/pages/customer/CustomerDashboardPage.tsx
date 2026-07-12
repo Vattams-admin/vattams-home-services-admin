@@ -1,110 +1,100 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { Calendar, CheckCircle, CreditCard, TrendingUp, Plus, ArrowRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import type { Booking } from '@/lib/supabase'
+import type { Booking, Profile } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
-import { cn, formatDate, formatCurrency, BOOKING_STATUS_COLORS } from '@/lib/utils'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { LoadingScreen } from '@/components/LoadingScreen'
-import { Calendar, CheckCircle, CreditCard, TrendingUp, Plus, Wrench } from 'lucide-react'
+import { cn, formatDate, formatCurrency, BOOKING_STATUS_COLORS } from '@/lib/utils'
+
+type Stats = { active: number; completed: number; pendingPayments: number; totalSpent: number }
+type BookingWithTech = Booking & { technician: Profile | null }
 
 export function CustomerDashboardPage() {
   const { profile } = useAuth()
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
-  const [bookings, setBookings] = useState<Booking[]>([])
-  const [stats, setStats] = useState({ active: 0, completed: 0, pendingPayments: 0, totalSpent: 0 })
+  const [stats, setStats] = useState<Stats>({ active: 0, completed: 0, pendingPayments: 0, totalSpent: 0 })
+  const [bookings, setBookings] = useState<BookingWithTech[]>([])
 
   useEffect(() => {
+    if (!profile) return
     let mounted = true;
     (async () => {
-      if (!profile) return
-      const { data: bks } = await supabase
-        .from('bookings')
-        .select('*')
-        .eq('customer_id', profile.id)
-        .order('created_at', { ascending: false })
-      if (!mounted || !bks) return
-      setBookings(bks as Booking[])
-      const active = bks.filter((b) => !['completed', 'cancelled'].includes(b.status)).length
-      const completed = bks.filter((b) => b.status === 'completed').length
-      const totalSpent = bks.filter((b) => b.status === 'completed').reduce((s, b) => s + b.amount, 0)
-      const { data: invoices } = await supabase
-        .from('invoices')
-        .select('amount,status')
-        .eq('customer_id', profile.id)
-        .eq('status', 'pending')
-      const pendingPayments = invoices?.length || 0
-      if (mounted) {
-        setStats({ active, completed, pendingPayments, totalSpent })
-        setLoading(false)
-      }
+      const activeStatuses = ['created', 'confirmed', 'assigned', 'accepted', 'on_the_way', 'arrived', 'work_started']
+      const { count: active } = await supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('customer_id', profile.id).in('status', activeStatuses)
+      const { count: completed } = await supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('customer_id', profile.id).eq('status', 'completed')
+      const { count: pendingPayments } = await supabase.from('invoices').select('*', { count: 'exact', head: true }).eq('customer_id', profile.id).eq('status', 'pending')
+      const { data: paidInvoices } = await supabase.from('invoices').select('amount').eq('customer_id', profile.id).eq('status', 'paid')
+      const totalSpent = (paidInvoices || []).reduce((sum, inv) => sum + (inv.amount || 0), 0)
+      const { data: recentBookings } = await supabase.from('bookings').select('*, technician:technician_id(*)').eq('customer_id', profile.id).order('created_at', { ascending: false }).limit(5)
+      if (!mounted) return
+      setStats({ active: active || 0, completed: completed || 0, pendingPayments: pendingPayments || 0, totalSpent })
+      setBookings((recentBookings || []) as BookingWithTech[])
+      setLoading(false)
     })()
     return () => { mounted = false }
   }, [profile])
 
   if (loading) return <LoadingScreen message="Loading dashboard..." />
+  if (!profile) return null
 
   const statCards = [
-    { label: 'Active Bookings', value: stats.active, icon: Calendar, color: 'text-blue-600 bg-blue-50' },
-    { label: 'Completed Services', value: stats.completed, icon: CheckCircle, color: 'text-green-600 bg-green-50' },
-    { label: 'Pending Payments', value: stats.pendingPayments, icon: CreditCard, color: 'text-amber-600 bg-amber-50' },
-    { label: 'Total Spent', value: formatCurrency(stats.totalSpent), icon: TrendingUp, color: 'text-purple-600 bg-purple-50' },
+    { label: 'Active Bookings', value: stats.active, icon: Calendar, color: 'text-blue-600 bg-blue-100' },
+    { label: 'Completed Services', value: stats.completed, icon: CheckCircle, color: 'text-green-600 bg-green-100' },
+    { label: 'Pending Payments', value: stats.pendingPayments, icon: CreditCard, color: 'text-amber-600 bg-amber-100' },
+    { label: 'Total Spent', value: formatCurrency(stats.totalSpent), icon: TrendingUp, color: 'text-purple-600 bg-purple-100' },
   ]
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Welcome, {profile?.name}!</h1>
-          <p className="text-gray-600">Here's your service overview</p>
+          <h1 className="text-2xl font-bold text-gray-900">Welcome, {profile.name}!</h1>
+          <p className="text-sm text-gray-500">Here&apos;s an overview of your services</p>
         </div>
-        <Link to="/customer/booking">
-          <Button><Plus className="mr-2 h-4 w-4" />Book New Service</Button>
-        </Link>
+        <Button onClick={() => navigate('/customer/booking')}><Plus className="mr-2 h-4 w-4" />Book New Service</Button>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {statCards.map((s) => {
-          const Icon = s.icon
-          return (
-            <Card key={s.label}>
-              <CardContent className="flex items-center gap-4 p-4">
-                <div className={cn('rounded-lg p-3', s.color)}><Icon className="h-6 w-6" /></div>
-                <div>
-                  <p className="text-sm text-gray-600">{s.label}</p>
-                  <p className="text-xl font-bold text-gray-900">{s.value}</p>
-                </div>
-              </CardContent>
-            </Card>
-          )
-        })}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {statCards.map((s) => (
+          <Card key={s.label}>
+            <CardContent className="flex items-center gap-4 py-4">
+              <div className={cn('flex h-12 w-12 items-center justify-center rounded-lg', s.color)}><s.icon className="h-6 w-6" /></div>
+              <div><p className="text-2xl font-bold text-gray-900">{s.value}</p><p className="text-sm text-gray-500">{s.label}</p></div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Recent Bookings</CardTitle>
-          <Link to="/customer/bookings" className="text-sm text-blue-600 hover:underline">View All</Link>
+          <Link to="/customer/bookings" className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1">View All <ArrowRight className="h-4 w-4" /></Link>
         </CardHeader>
         <CardContent>
           {bookings.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 py-8 text-center">
-              <Wrench className="h-12 w-12 text-gray-300" />
-              <p className="text-gray-500">No bookings yet. Book your first service!</p>
-              <Link to="/customer/booking"><Button size="sm"><Plus className="mr-2 h-4 w-4" />Book Now</Button></Link>
+            <div className="py-8 text-center">
+              <p className="text-gray-500">No bookings yet. Book your first service today!</p>
+              <Button className="mt-4" onClick={() => navigate('/customer/booking')}><Plus className="mr-2 h-4 w-4" />Book New Service</Button>
             </div>
           ) : (
             <div className="space-y-3">
-              {bookings.slice(0, 5).map((b) => (
-                <div key={b.id} className="flex items-center justify-between rounded-lg border border-gray-100 p-3">
-                  <div className="space-y-1">
-                    <p className="font-medium text-gray-900">{b.service_name}</p>
-                    <p className="text-sm text-gray-500">#{b.booking_number} · {formatDate(b.scheduled_date)}</p>
+              {bookings.map((b) => (
+                <div key={b.id} className="flex items-center justify-between rounded-lg border border-gray-200 p-3 hover:bg-gray-50">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-gray-900 truncate">{b.service_name}</p>
+                      <Badge color={BOOKING_STATUS_COLORS[b.status]}>{b.status.replace(/_/g, ' ')}</Badge>
+                    </div>
+                    <p className="mt-1 text-sm text-gray-500">{formatDate(b.scheduled_date)}{b.technician ? ` • ${b.technician.name}` : ''}</p>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium text-gray-900">{formatCurrency(b.amount)}</span>
-                    <Badge color={BOOKING_STATUS_COLORS[b.status]}>{b.status.replace(/_/g, ' ')}</Badge>
+                  <div className="ml-4 text-right">
+                    <p className="font-semibold text-gray-900">{formatCurrency(b.amount)}</p>
+                    <Link to={`/customer/track/${b.id}`} className="text-sm text-blue-600 hover:text-blue-700">Track</Link>
                   </div>
                 </div>
               ))}
