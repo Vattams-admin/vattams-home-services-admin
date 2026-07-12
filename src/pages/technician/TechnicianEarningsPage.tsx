@@ -1,139 +1,162 @@
 import { useEffect, useState } from 'react'
-import { Calendar, Loader as Loader2, TrendingUp, Wallet } from 'lucide-react'
+import { Download, Eye, TrendingUp, Calendar, Clock } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import type { Booking } from '@/lib/supabase'
+import type { Invoice, Booking, Profile, Settings } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
+import { useToast } from '@/hooks/use-toast'
+import { LoadingScreen } from '@/components/LoadingScreen'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Modal } from '@/components/ui/modal'
+import { formatDate, formatCurrency } from '@/lib/utils'
+import { generateInvoicePDF } from '@/lib/pdf'
+
+type InvoiceWithBooking = Invoice & { booking?: Booking | null }
 
 export function TechnicianEarningsPage() {
   const { profile } = useAuth()
-  const [bookings, setBookings] = useState<Booking[]>([])
+  const { toast } = useToast()
   const [loading, setLoading] = useState(true)
+  const [invoices, setInvoices] = useState<InvoiceWithBooking[]>([])
+  const [stats, setStats] = useState({ total: 0, thisMonth: 0, pending: 0 })
+  const [selected, setSelected] = useState<InvoiceWithBooking | null>(null)
+  const [downloading, setDownloading] = useState(false)
 
   useEffect(() => {
-    if (!profile?.id) return
-    let mounted = true
-    ;(async () => {
-      setLoading(true)
-      const { data } = await supabase
-        .from('bookings')
-        .select('*')
-        .eq('technician_id', profile.id)
-        .eq('status', 'completed')
-        .order('created_at', { ascending: false })
-      if (!mounted) return
-      setBookings((data ?? []) as Booking[])
-      setLoading(false)
+    if (!profile) return
+    let mounted = true;
+    (async () => {
+      const { data: inv } = await supabase
+        .from('invoices').select('*').eq('technician_id', profile.id).order('created_at', { ascending: false })
+      if (!mounted || !inv) return
+      const all = inv as Invoice[]
+      const bookingIds = [...new Set(all.map((i) => i.booking_id))]
+      const bookings: Record<string, Booking> = {}
+      if (bookingIds.length) {
+        const { data: bk } = await supabase.from('bookings').select('*').in('id', bookingIds)
+        ;(bk || []).forEach((b) => { bookings[b.id] = b as Booking })
+      }
+      const enriched = all.map((i) => ({ ...i, booking: bookings[i.booking_id] }))
+      const paid = all.filter((i) => i.status === 'paid')
+      const total = paid.reduce((s, i) => s + Number(i.amount), 0)
+      const now = new Date()
+      const thisMonth = paid.filter((i) => {
+        const d = new Date(i.created_at)
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+      }).reduce((s, i) => s + Number(i.amount), 0)
+      const pending = all.filter((i) => i.status === 'pending').reduce((s, i) => s + Number(i.amount), 0)
+      if (mounted) { setInvoices(enriched); setStats({ total, thisMonth, pending }); setLoading(false) }
     })()
     return () => { mounted = false }
-  }, [profile?.id])
+  }, [profile])
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-      </div>
-    )
+  if (loading) return <LoadingScreen />
+
+  const handleDownload = async (inv: InvoiceWithBooking) => {
+    setDownloading(true)
+    try {
+      const { data: settings } = await supabase.from('settings').select('*').maybeSingle()
+      const { data: cust } = inv.booking?.customer_id
+        ? await supabase.from('profiles').select('*').eq('id', inv.booking.customer_id).maybeSingle()
+        : { data: null }
+      await generateInvoicePDF(inv, inv.booking || null, cust as Profile | null, profile, settings as Settings | null)
+      toast('Invoice downloaded', 'success')
+    } catch {
+      toast('Failed to generate PDF', 'error')
+    }
+    setDownloading(false)
   }
 
-  const total = bookings.reduce((s, b) => s + Number(b.amount), 0)
-  const now = new Date()
-  const thisMonth = bookings
-    .filter((b) => {
-      const d = new Date(b.created_at)
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
-    })
-    .reduce((s, b) => s + Number(b.amount), 0)
-  const avg = bookings.length ? total / bookings.length : 0
+  const statusColor = (s: string) => s === 'paid' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
 
-  // Monthly earnings for last 6 months
-  const months: { label: string; value: number }[] = []
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    const label = d.toLocaleDateString('en-IN', { month: 'short' })
-    const value = bookings
-      .filter((b) => {
-        const bd = new Date(b.created_at)
-        return bd.getMonth() === d.getMonth() && bd.getFullYear() === d.getFullYear()
-      })
-      .reduce((s, b) => s + Number(b.amount), 0)
-    months.push({ label, value })
-  }
-  const maxMonthly = Math.max(...months.map((m) => m.value), 1)
-
-  const stats = [
-    { label: 'Total Earnings', value: formatCurrency(total), icon: Wallet, color: 'text-purple-600 bg-purple-100' },
-    { label: 'This Month', value: formatCurrency(thisMonth), icon: TrendingUp, color: 'text-green-600 bg-green-100' },
-    { label: 'Completed Jobs', value: bookings.length, icon: Calendar, color: 'text-blue-600 bg-blue-100' },
-    { label: 'Average per Job', value: formatCurrency(avg), icon: TrendingUp, color: 'text-amber-600 bg-amber-100' },
+  const cards = [
+    { label: 'Total Earnings', value: formatCurrency(stats.total), icon: TrendingUp, color: 'text-green-600 bg-green-50' },
+    { label: 'This Month', value: formatCurrency(stats.thisMonth), icon: Calendar, color: 'text-blue-600 bg-blue-50' },
+    { label: 'Pending Payments', value: formatCurrency(stats.pending), icon: Clock, color: 'text-amber-600 bg-amber-50' },
   ]
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Earnings</h1>
+      <h1 className="text-2xl font-bold text-gray-900">Earnings & Invoices</h1>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((s) => (
-          <Card key={s.label}>
-            <CardContent className="flex items-center gap-4 p-5">
-              <div className={`rounded-lg p-3 ${s.color}`}>
-                <s.icon className="h-6 w-6" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">{s.label}</p>
-                <p className="text-xl font-bold text-gray-900">{s.value}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {cards.map((s) => {
+          const Icon = s.icon
+          return (
+            <Card key={s.label}>
+              <CardContent className="flex items-center gap-4 p-4">
+                <div className={`flex h-12 w-12 items-center justify-center rounded-lg ${s.color}`}>
+                  <Icon className="h-6 w-6" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">{s.label}</p>
+                  <p className="text-xl font-bold text-gray-900">{s.value}</p>
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })}
       </div>
 
       <Card>
-        <CardHeader><CardTitle>Monthly Earnings (Last 6 Months)</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>Invoices</CardTitle>
+        </CardHeader>
         <CardContent>
-          <div className="flex items-end justify-between gap-3 pt-4" style={{ height: '200px' }}>
-            {months.map((m) => (
-              <div key={m.label} className="flex flex-1 flex-col items-center gap-2">
-                <span className="text-xs font-medium text-gray-600">
-                  {m.value > 0 ? formatCurrency(m.value) : ''}
-                </span>
-                <div
-                  className="w-full rounded-t-md bg-gradient-to-t from-blue-500 to-blue-400 transition-all"
-                  style={{ height: `${(m.value / maxMonthly) * 140}px`, minHeight: m.value > 0 ? '8px' : '2px' }}
-                />
-                <span className="text-xs text-gray-500">{m.label}</span>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader><CardTitle>Earnings History</CardTitle></CardHeader>
-        <CardContent>
-          {bookings.length === 0 ? (
-            <div className="py-12 text-center">
-              <Wallet className="mx-auto mb-3 h-10 w-10 text-gray-300" />
-              <p className="text-sm text-gray-500">No earnings yet. Complete jobs to start earning!</p>
-            </div>
+          {invoices.length === 0 ? (
+            <div className="py-12 text-center text-gray-500">No invoices yet. Your earnings will appear here after completing jobs.</div>
           ) : (
-            <div className="space-y-2">
-              {bookings.map((b) => (
-                <div key={b.id} className="flex items-center justify-between rounded-lg border border-gray-100 p-4">
-                  <div className="min-w-0">
-                    <p className="font-medium text-gray-900">{b.service_name}</p>
-                    <p className="text-sm text-gray-500">
-                      {b.booking_number} · {formatDate(b.created_at)}
+            <div className="space-y-3">
+              {invoices.map((inv) => (
+                <div key={inv.id} className="flex flex-col gap-3 rounded-lg border border-gray-200 p-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-gray-900">{inv.invoice_number}</p>
+                      <Badge color={statusColor(inv.status)}>{inv.status}</Badge>
+                    </div>
+                    <p className="mt-1 text-sm text-gray-500">
+                      {inv.booking?.service_name || 'Service'} · {formatDate(inv.created_at)}
+                      {inv.paid_at && ` · Paid on ${formatDate(inv.paid_at)}`}
                     </p>
                   </div>
-                  <span className="text-lg font-bold text-green-600">{formatCurrency(b.amount)}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-gray-900">{formatCurrency(Number(inv.amount))}</span>
+                    <Button variant="outline" size="sm" onClick={() => setSelected(inv)}><Eye className="mr-1 h-4 w-4" />View</Button>
+                    <Button variant="outline" size="sm" onClick={() => handleDownload(inv)}><Download className="mr-1 h-4 w-4" />PDF</Button>
+                  </div>
                 </div>
               ))}
             </div>
           )}
         </CardContent>
       </Card>
+
+      <Modal open={!!selected} onClose={() => setSelected(null)} title="Invoice Details">
+        {selected && (
+          <div className="space-y-3 text-sm">
+            <Row label="Invoice No." value={selected.invoice_number} />
+            <Row label="Service" value={selected.service_name || selected.booking?.service_name || '—'} />
+            <Row label="Booking No." value={selected.booking?.booking_number || '—'} />
+            <Row label="Status" value={<Badge color={statusColor(selected.status)}>{selected.status}</Badge>} />
+            <Row label="Amount" value={formatCurrency(Number(selected.amount))} />
+            <Row label="GST (18%)" value={formatCurrency(Math.round(Number(selected.amount) * 0.18))} />
+            <Row label="Total" value={formatCurrency(Number(selected.amount) + Math.round(Number(selected.amount) * 0.18))} />
+            <Row label="Payment Method" value={selected.payment_method || '—'} />
+            <Row label="Created" value={formatDate(selected.created_at)} />
+            {selected.paid_at && <Row label="Paid On" value={formatDate(selected.paid_at)} />}
+            <div className="pt-2">
+              <Button onClick={() => handleDownload(selected)} disabled={downloading} className="w-full">
+                <Download className="mr-2 h-4 w-4" />{downloading ? 'Generating...' : 'Download PDF'}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   )
+}
+
+function Row({ label, value }: { label: string; value: React.ReactNode }) {
+  return <div className="flex justify-between gap-4"><span className="text-gray-500">{label}</span><span className="text-right font-medium text-gray-900">{value}</span></div>
 }

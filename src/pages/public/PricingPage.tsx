@@ -1,87 +1,139 @@
-import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Loader as Loader2, Check, ArrowRight } from 'lucide-react'
-import { supabase, type ServiceCategory } from '@/lib/supabase'
+import { Check, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
-const includedItems = [
-  'Professional technician visit',
-  'Quality spare parts (if needed)',
-  '30-day service warranty',
-  'Transparent pricing — no hidden charges',
-  'Post-service cleanup',
-  'Customer support assistance',
+const pricingTiers = [
+  {
+    category: 'AC Service',
+    icon: '❄️',
+    popular: false,
+    services: [
+      { name: 'General Service (Split AC)', price: '₹399' },
+      { name: 'General Service (Window AC)', price: '₹349' },
+      { name: 'Gas Refill (R-32)', price: '₹1,499' },
+      { name: 'Gas Refill (R-22)', price: '₹1,799' },
+      { name: 'Installation / Uninstallation', price: '₹499' },
+    ],
+  },
+  {
+    category: 'Washing Machine',
+    icon: '🧺',
+    popular: false,
+    services: [
+      { name: 'Inspection & Diagnosis', price: '₹299' },
+      { name: 'General Service', price: '₹499' },
+      { name: 'Motor Repair', price: '₹899' },
+      { name: 'Drum Bearing Replacement', price: '₹1,299' },
+    ],
+  },
+  {
+    category: 'Refrigerator',
+    icon: '🧊',
+    popular: false,
+    services: [
+      { name: 'Inspection & Diagnosis', price: '₹349' },
+      { name: 'Gas Refill', price: '₹999' },
+      { name: 'Compressor Replacement', price: '₹2,499' },
+      { name: 'Thermostat Replacement', price: '₹699' },
+    ],
+  },
+  {
+    category: 'Plumbing',
+    icon: '🔧',
+    popular: false,
+    services: [
+      { name: 'Leak Detection', price: '₹199' },
+      { name: 'Tap / Mixer Repair', price: '₹299' },
+      { name: 'Motor Repair', price: '₹599' },
+      { name: 'Pipe Fitting (per ft)', price: '₹99' },
+    ],
+  },
+  {
+    category: 'Electrical',
+    icon: '⚡',
+    popular: true,
+    services: [
+      { name: 'Inspection & Diagnosis', price: '₹199' },
+      { name: 'Switchboard Repair', price: '₹299' },
+      { name: 'Fan Installation', price: '₹399' },
+      { name: 'Wiring (per point)', price: '₹249' },
+    ],
+  },
+  {
+    category: 'CCTV Installation',
+    icon: '📹',
+    popular: false,
+    services: [
+      { name: 'Per Camera Installation', price: '₹499' },
+      { name: 'DVR / NVR Setup', price: '₹999' },
+      { name: 'Remote Monitoring Setup', price: '₹699' },
+      { name: 'Annual Maintenance', price: '₹2,499' },
+    ],
+  },
 ]
 
 export function PricingPage() {
-  const [services, setServices] = useState<ServiceCategory[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    supabase
-      .from('service_categories')
-      .select('*')
-      .eq('is_active', true)
-      .order('sort_order')
-      .then(({ data, error }) => {
-        if (!error && data) setServices(data as ServiceCategory[])
-        setLoading(false)
-      })
-  }, [])
-
   return (
-    <div>
-      <section className="bg-gradient-to-br from-blue-700 to-blue-800 py-16 text-white">
-        <div className="mx-auto max-w-7xl px-4 text-center">
-          <h1 className="text-4xl font-bold">Pricing</h1>
-          <p className="mt-2 text-blue-100">Transparent and affordable pricing for every service</p>
+    <div className="py-12">
+      <div className="mx-auto max-w-7xl px-4">
+        <div className="text-center">
+          <h1 className="text-4xl font-bold text-gray-900">Transparent Pricing</h1>
+          <p className="mx-auto mt-3 max-w-2xl text-lg text-gray-600">
+            No hidden charges. Pay only for what you need. Final pricing may vary based on
+            the complexity of the job and parts required.
+          </p>
         </div>
-      </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-16">
-        {loading ? (
-          <div className="flex justify-center py-20">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-          </div>
-        ) : services.length === 0 ? (
-          <p className="py-20 text-center text-gray-500">Pricing information will be available soon.</p>
-        ) : (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {services.map((s) => (
-              <Card key={s.id} className="flex flex-col transition-shadow hover:shadow-md">
-                <CardContent className="flex flex-1 flex-col p-6">
-                  <h3 className="text-xl font-semibold text-gray-900">{s.name}</h3>
-                  {s.description && <p className="mt-1 text-sm text-gray-500">{s.description}</p>}
-                  <div className="mt-4">
-                    <span className="text-3xl font-bold text-blue-600">₹{s.base_price}</span>
-                    <span className="text-sm text-gray-500"> onwards</span>
-                  </div>
-                  <ul className="mt-6 flex-1 space-y-2">
-                    {includedItems.map((item) => (
-                      <li key={item} className="flex items-start gap-2 text-sm text-gray-600">
-                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <Button asChild className="mt-6 w-full">
-                    <Link to="/register/customer">Book Now <ArrowRight className="ml-2 h-4 w-4" /></Link>
+        <div className="mt-12 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {pricingTiers.map((tier) => (
+            <Card
+              key={tier.category}
+              className={tier.popular ? 'border-blue-500 ring-2 ring-blue-500' : ''}
+            >
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <span className="text-2xl">{tier.icon}</span>
+                    {tier.category}
+                  </CardTitle>
+                  {tier.popular && (
+                    <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700">
+                      Popular
+                    </span>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-3">
+                  {tier.services.map((s) => (
+                    <li key={s.name} className="flex items-center justify-between">
+                      <span className="flex items-center gap-2 text-sm text-gray-600">
+                        <Check className="h-4 w-4 text-green-500" />
+                        {s.name}
+                      </span>
+                      <span className="text-sm font-semibold text-gray-900">{s.price}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Link to="/register/customer" className="mt-6 block">
+                  <Button className="w-full" variant={tier.popular ? 'primary' : 'outline'}>
+                    Book Now <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-
-        <div className="mt-12 rounded-xl bg-gray-50 p-8 text-center">
-          <h3 className="text-xl font-semibold text-gray-900">Custom requirements?</h3>
-          <p className="mt-1 text-gray-600">Contact us for bulk bookings and customized service packages.</p>
-          <Button asChild variant="outline" className="mt-4">
-            <Link to="/contact">Contact Us <ArrowRight className="ml-2 h-4 w-4" /></Link>
-          </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          ))}
         </div>
-      </section>
+
+        <div className="mt-12 rounded-lg bg-blue-50 p-6 text-center">
+          <p className="text-sm text-gray-600">
+            <strong>Note:</strong> Prices shown are starting prices. Final charges depend on
+            the scope of work and any replacement parts needed. A visit charge of ₹99 applies
+            for all on-site inspections, which is adjusted in the final bill.
+          </p>
+        </div>
+      </div>
     </div>
   )
 }

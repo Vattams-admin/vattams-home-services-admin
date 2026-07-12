@@ -1,58 +1,102 @@
 import { useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, ChevronUp, HelpCircle } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
+import { Link } from 'react-router-dom'
 
-type Faq = { q: string; a: string }
-
-const faqs: Faq[] = [
-  { q: 'How do I book a service?', a: 'You can book a service by creating a customer account on our platform, selecting your desired service, choosing a date and time, and confirming your booking. You can also call us directly and our team will assist you.' },
-  { q: 'What are the payment options?', a: 'We accept multiple payment methods including UPI, credit/debit cards, net banking, and cash after service completion. You can choose your preferred method at the time of booking or after the service is done.' },
-  { q: 'Are the technicians verified?', a: 'Yes, all our technicians undergo background verification and are trained professionals. We ensure they meet our quality standards before they are assigned to any service request.' },
-  { q: 'Can I cancel or reschedule a booking?', a: 'Yes, you can cancel or reschedule a booking from your dashboard. Cancellations made at least 2 hours before the scheduled time incur no charge. Late cancellations may be subject to a nominal fee.' },
-  { q: 'Is there a warranty on the services?', a: 'Yes, we offer a 30-day service warranty on most services. If you face any issue related to the service within this period, we will send a technician to fix it at no additional cost.' },
-  { q: 'How is the pricing determined?', a: 'Our pricing is transparent and based on the service category. Each service has a base price, and any additional work or spare parts required will be quoted by the technician before proceeding. There are no hidden charges.' },
-  { q: 'What if I am not satisfied with the service?', a: 'Customer satisfaction is our priority. If you are not satisfied, please contact our support team within 48 hours. We will arrange a revisit or resolve the issue at no extra cost.' },
-  { q: 'Do you provide service on weekends?', a: 'Yes, our technicians are available on weekends and public holidays. You can select your preferred date and time while booking, including weekend slots.' },
-  { q: 'How long does a typical service take?', a: 'The duration depends on the type and complexity of the service. Most standard services take 1-2 hours. The technician will give you an estimated time upon assessment.' },
-  { q: 'Can I provide feedback or rate the technician?', a: 'Absolutely! After every completed service, you can rate your technician and leave a review from your dashboard. Your feedback helps us maintain quality and improve our services.' },
+const faqs = [
+  {
+    q: 'How do I book a service with VATTAMS?',
+    a: 'Simply register as a customer, navigate to the booking page, select your service, choose a date and time, and confirm. A verified technician will be assigned to your booking.',
+  },
+  {
+    q: 'What areas do you serve?',
+    a: 'We currently serve major cities across Tamil Nadu including Chennai, Coimbatore, Madurai, Tiruchirappalli, Salem, Tirunelveli, Vellore, Erode, Dindigul, and Thanjavur. Check our Cities page for the full list.',
+  },
+  {
+    q: 'How are technicians verified?',
+    a: 'Every technician undergoes a background check, skill assessment, and document verification. They also pay a verification fee before being approved to accept jobs on our platform.',
+  },
+  {
+    q: 'What is the verification fee for technicians?',
+    a: 'Technicians pay a one-time verification fee of ₹50 during registration. This fee is refundable after completing 4 jobs on the platform, as part of our commitment to technician welfare.',
+  },
+  {
+    q: 'How do I track my booking?',
+    a: 'Once your booking is confirmed and a technician is assigned, you can track the real-time status from your customer dashboard. You will receive notifications at each stage of the service.',
+  },
+  {
+    q: 'What payment methods are accepted?',
+    a: 'We accept UPI, credit/debit cards, net banking, and cash on completion. You can choose your preferred payment method at the time of booking or after the service is completed.',
+  },
+  {
+    q: 'Can I cancel or reschedule a booking?',
+    a: 'Yes, you can cancel or reschedule a booking from your dashboard. Cancellations are free if done before the technician is assigned. Rescheduling is subject to technician availability.',
+  },
+  {
+    q: 'Do you provide a warranty on services?',
+    a: 'Yes, all our services come with a quality guarantee. If you face any issue with the service within the warranty period, we will send a technician to fix it at no additional cost.',
+  },
+  {
+    q: 'How do I become a technician with VATTAMS?',
+    a: 'Register as a technician on our platform, provide your skills, experience, and location details. After paying the verification fee and passing the review, you can start accepting jobs.',
+  },
+  {
+    q: 'Is there a customer support helpline?',
+    a: 'Yes, you can reach our customer support via phone or WhatsApp. Visit our Contact page for all available support channels and timings.',
+  },
 ]
 
 export function FaqPage() {
-  const [open, setOpen] = useState<number | null>(0)
+  const [openIndex, setOpenIndex] = useState<number | null>(0)
 
   return (
-    <div>
-      <section className="bg-gradient-to-br from-blue-700 to-blue-800 py-16 text-white">
-        <div className="mx-auto max-w-7xl px-4 text-center">
-          <h1 className="text-4xl font-bold">Frequently Asked Questions</h1>
-          <p className="mt-2 text-blue-100">Find answers to common questions about our services</p>
+    <div className="py-12">
+      <div className="mx-auto max-w-3xl px-4">
+        <div className="text-center">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-blue-50">
+            <HelpCircle className="h-8 w-8 text-blue-600" />
+          </div>
+          <h1 className="mt-4 text-4xl font-bold text-gray-900">Frequently Asked Questions</h1>
+          <p className="mt-3 text-lg text-gray-600">
+            Find answers to common questions about VATTAMS Home Services.
+          </p>
         </div>
-      </section>
 
-      <section className="mx-auto max-w-3xl px-4 py-16">
-        <div className="space-y-3">
+        <div className="mt-10 space-y-4">
           {faqs.map((faq, i) => (
             <Card key={i}>
               <CardContent className="p-0">
                 <button
-                  onClick={() => setOpen(open === i ? null : i)}
-                  className="flex w-full items-center justify-between p-4 text-left"
+                  onClick={() => setOpenIndex(openIndex === i ? null : i)}
+                  className="flex w-full items-center justify-between px-6 py-4 text-left"
                 >
-                  <span className="font-medium text-gray-900">{faq.q}</span>
-                  <ChevronDown
-                    className={`h-5 w-5 shrink-0 text-gray-500 transition-transform ${
-                      open === i ? 'rotate-180' : ''
-                    }`}
-                  />
+                  <span className="font-semibold text-gray-900">{faq.q}</span>
+                  {openIndex === i ? (
+                    <ChevronUp className="h-5 w-5 flex-shrink-0 text-gray-400" />
+                  ) : (
+                    <ChevronDown className="h-5 w-5 flex-shrink-0 text-gray-400" />
+                  )}
                 </button>
-                {open === i && (
-                  <div className="border-t px-4 py-3 text-sm text-gray-600">{faq.a}</div>
+                {openIndex === i && (
+                  <div className="px-6 pb-4">
+                    <p className="text-sm text-gray-600">{faq.a}</p>
+                  </div>
                 )}
               </CardContent>
             </Card>
           ))}
         </div>
-      </section>
+
+        <div className="mt-12 rounded-lg bg-blue-50 p-6 text-center">
+          <h3 className="text-lg font-semibold text-gray-900">Still have questions?</h3>
+          <p className="mt-1 text-sm text-gray-600">
+            Our support team is here to help.{' '}
+            <Link to="/contact" className="font-medium text-blue-600 hover:text-blue-700">
+              Contact us
+            </Link>
+          </p>
+        </div>
+      </div>
     </div>
   )
 }

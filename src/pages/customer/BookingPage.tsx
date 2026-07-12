@@ -1,185 +1,156 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Loader as Loader2 } from 'lucide-react'
+import { Calendar, MapPin, FileText, Tag } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import type { ServiceCategory } from '@/lib/supabase'
+import type { Profile } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
 import { useToast } from '@/hooks/use-toast'
-import { createNotification } from '@/lib/notifications'
-import { SERVICE_AREAS } from '@/lib/constants'
-import { Button } from '@/components/ui/button'
+import { LoadingScreen } from '@/components/LoadingScreen'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input, Select, Textarea } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import { Input, Textarea, Select } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { sanitizeInput } from '@/lib/utils'
+import { TAMIL_NADU_DISTRICTS, SERVICE_CITIES } from '@/lib/constants'
+import { createNotification, createAuditLog } from '@/lib/notifications'
+
+type ServiceCat = { id: string; name: string; base_price: number }
 
 export function BookingPage() {
   const { profile } = useAuth()
   const { toast } = useToast()
   const navigate = useNavigate()
-  const [categories, setCategories] = useState<ServiceCategory[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [services, setServices] = useState<ServiceCat[]>([])
+
   const [form, setForm] = useState({
-    service_category_id: '',
-    scheduled_date: '',
-    scheduled_time: '',
-    address: '',
-    city: '',
-    pincode: '',
-    customer_notes: '',
+    service_name: '', service_category_id: '', scheduled_date: '', scheduled_time: '',
+    address: '', city: '', district: '', pincode: '', customer_notes: '', amount: '',
   })
 
   useEffect(() => {
-    let mounted = true
-    ;(async () => {
-      const { data } = await supabase
-        .from('service_categories')
-        .select('*')
-        .eq('is_active', true)
-        .order('sort_order', { ascending: true })
-      if (mounted) { setCategories((data ?? []) as ServiceCategory[]); setLoading(false) }
+    let mounted = true;
+    (async () => {
+      const { data } = await supabase.from('service_categories').select('id, name, base_price').eq('is_active', true).order('sort_order')
+      if (mounted) { setServices((data || []) as ServiceCat[]); setLoading(false) }
     })()
     return () => { mounted = false }
   }, [])
 
-  const selectedCategory = categories.find((c) => c.id === form.service_category_id)
+  if (loading) return <LoadingScreen />
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!profile?.id || !selectedCategory) return
-    setSubmitting(true)
-    try {
-      const { data, error } = await supabase
-        .from('bookings')
-        .insert({
-          customer_id: profile.id,
-          service_category_id: selectedCategory.id,
-          service_name: selectedCategory.name,
-          amount: selectedCategory.base_price,
-          scheduled_date: form.scheduled_date,
-          scheduled_time: form.scheduled_time,
-          address: form.address,
-          city: form.city,
-          pincode: form.pincode,
-          customer_notes: form.customer_notes,
-          status: 'created',
-        })
-        .select()
-        .single()
-      if (error) throw error
+  const update = (k: string, v: string) => setForm({ ...form, [k]: v })
 
-      // Notify admins
-      const { data: admins } = await supabase
-        .from('profiles')
-        .select('id')
-        .in('role', ['admin', 'super_admin'])
-      await Promise.all(
-        (admins ?? []).map((a) =>
-          createNotification(
-            a.id,
-            'New Booking Created',
-            `New booking ${data.booking_number} for ${selectedCategory.name} by ${profile.name}.`,
-            'new_booking',
-            data.id,
-          ),
-        ),
-      )
-
-      toast({ title: 'Booking created!', description: 'We will confirm your booking shortly.', variant: 'success' })
-      navigate('/customer/bookings')
-    } catch (err) {
-      toast({ title: 'Failed to create booking', description: (err as Error).message, variant: 'error' })
-    } finally {
-      setSubmitting(false)
-    }
+  const onServiceChange = (name: string) => {
+    const svc = services.find((s) => s.name === name)
+    setForm({ ...form, service_name: name, service_category_id: svc?.id || '', amount: svc ? String(svc.base_price) : '' })
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-      </div>
-    )
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!profile) return
+    setSubmitting(true)
+    const payload = {
+      customer_id: profile.id,
+      service_name: form.service_name,
+      service_category_id: form.service_category_id || null,
+      scheduled_date: form.scheduled_date || null,
+      scheduled_time: form.scheduled_time || null,
+      address: sanitizeInput(form.address),
+      city: sanitizeInput(form.city),
+      district: form.district,
+      pincode: form.pincode,
+      customer_notes: sanitizeInput(form.customer_notes),
+      amount: Number(form.amount) || 0,
+      status: 'created',
+    }
+    const { data, error } = await supabase.from('bookings').insert(payload).select().single()
+    if (error) { toast(error.message, 'error'); setSubmitting(false); return }
+    const booking = data as { id: string; booking_number: string }
+    await createNotification(profile.id, 'Booking Created', `Your booking ${booking.booking_number} for ${form.service_name} has been created successfully.`, 'booking')
+    await createAuditLog(profile.id, 'booking_created', 'booking', booking.id, `Customer created booking ${booking.booking_number}`)
+    toast('Booking created successfully!', 'success')
+    navigate('/customer/bookings')
   }
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Book a Service</h1>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Book a Service</h1>
+        <p className="text-sm text-gray-600">Fill in the details below to schedule your service</p>
+      </div>
+
       <Card>
         <CardHeader><CardTitle>Service Details</CardTitle></CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="service">Service Category</Label>
-              <Select
-                id="service"
-                required
-                value={form.service_category_id}
-                onChange={(e) => setForm({ ...form, service_category_id: e.target.value })}
-              >
+            <div>
+              <Label htmlFor="service">Service Type</Label>
+              <Select id="service" required value={form.service_name} onChange={(e) => onServiceChange(e.target.value)}>
                 <option value="">Select a service</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} — ₹{c.base_price}
-                  </option>
-                ))}
+                {services.map((s) => <option key={s.id} value={s.name}>{s.name} (from ₹{s.base_price})</option>)}
               </Select>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="date">Date</Label>
-                <Input id="date" type="date" required value={form.scheduled_date}
-                  onChange={(e) => setForm({ ...form, scheduled_date: e.target.value })} />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="date">Scheduled Date</Label>
+                <Input id="date" type="date" required value={form.scheduled_date} onChange={(e) => update('scheduled_date', e.target.value)} min={new Date().toISOString().split('T')[0]} />
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="time">Time</Label>
-                <Input id="time" type="time" required value={form.scheduled_time}
-                  onChange={(e) => setForm({ ...form, scheduled_time: e.target.value })} />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="address">Address</Label>
-              <Textarea id="address" required rows={2} value={form.address}
-                onChange={(e) => setForm({ ...form, address: e.target.value })}
-                placeholder="Full service address" />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="city">City</Label>
-                <Select id="city" required value={form.city}
-                  onChange={(e) => setForm({ ...form, city: e.target.value })}>
-                  <option value="">Select city</option>
-                  {SERVICE_AREAS.map((c) => <option key={c} value={c}>{c}</option>)}
+              <div>
+                <Label htmlFor="time">Preferred Time</Label>
+                <Select id="time" value={form.scheduled_time} onChange={(e) => update('scheduled_time', e.target.value)}>
+                  <option value="">Any time</option>
+                  <option value="09:00-12:00">Morning (9 AM - 12 PM)</option>
+                  <option value="12:00-15:00">Afternoon (12 PM - 3 PM)</option>
+                  <option value="15:00-18:00">Evening (3 PM - 6 PM)</option>
                 </Select>
               </div>
-              <div className="space-y-1.5">
+            </div>
+
+            <div>
+              <Label htmlFor="address">Address</Label>
+              <Textarea id="address" required rows={2} value={form.address} onChange={(e) => update('address', e.target.value)} placeholder="House no, Street, Landmark..." />
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div>
+                <Label htmlFor="city">City</Label>
+                <Select id="city" required value={form.city} onChange={(e) => update('city', e.target.value)}>
+                  <option value="">Select city</option>
+                  {SERVICE_CITIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="district">District</Label>
+                <Select id="district" required value={form.district} onChange={(e) => update('district', e.target.value)}>
+                  <option value="">Select district</option>
+                  {TAMIL_NADU_DISTRICTS.map((d) => <option key={d} value={d}>{d}</option>)}
+                </Select>
+              </div>
+              <div>
                 <Label htmlFor="pincode">Pincode</Label>
-                <Input id="pincode" required value={form.pincode}
-                  onChange={(e) => setForm({ ...form, pincode: e.target.value })}
-                  placeholder="6-digit pincode" />
+                <Input id="pincode" required value={form.pincode} onChange={(e) => update('pincode', e.target.value)} placeholder="600001" maxLength={6} pattern="[0-9]{6}" />
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="notes">Notes (optional)</Label>
-              <Textarea id="notes" rows={3} value={form.customer_notes}
-                onChange={(e) => setForm({ ...form, customer_notes: e.target.value })}
-                placeholder="Any special instructions..." />
+            <div>
+              <Label htmlFor="notes">Description / Notes</Label>
+              <Textarea id="notes" rows={3} value={form.customer_notes} onChange={(e) => update('customer_notes', e.target.value)} placeholder="Describe the issue or service needed..." />
             </div>
 
-            {selectedCategory && (
-              <div className="rounded-lg bg-blue-50 p-3 text-sm text-blue-700">
-                Estimated amount: <span className="font-semibold">₹{selectedCategory.base_price}</span>
-              </div>
-            )}
+            <div>
+              <Label htmlFor="amount">Amount (₹)</Label>
+              <Input id="amount" type="number" required value={form.amount} onChange={(e) => update('amount', e.target.value)} min="0" />
+            </div>
 
-            <Button type="submit" className="w-full" disabled={submitting}>
-              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {submitting ? 'Creating...' : 'Confirm Booking'}
-            </Button>
+            <div className="flex gap-2 pt-2">
+              <Button type="submit" disabled={submitting} className="flex-1">
+                {submitting ? 'Creating booking...' : 'Create Booking'}
+              </Button>
+              <Button type="button" variant="outline" onClick={() => navigate('/customer/bookings')}>Cancel</Button>
+            </div>
           </form>
         </CardContent>
       </Card>

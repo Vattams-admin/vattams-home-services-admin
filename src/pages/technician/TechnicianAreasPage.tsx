@@ -1,150 +1,147 @@
 import { useEffect, useState } from 'react'
-import { Loader as Loader2, MapPin, Plus, Trash2 } from 'lucide-react'
+import { MapPin, Plus, Trash2, Power } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import type { ServiceArea } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
 import { useToast } from '@/hooks/use-toast'
-import { Button } from '@/components/ui/button'
+import { LoadingScreen } from '@/components/LoadingScreen'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input, Select } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Select } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { cn } from '@/lib/utils'
+import { TAMIL_NADU_DISTRICTS } from '@/lib/constants'
 
-type WorkingArea = {
-  id: string
-  technician_id: string
-  district: string
-  city: string
-  pincode: string
-  created_at: string
+type WorkArea = {
+  id: string; technician_id: string; district: string
+  is_available: boolean; created_at: string
 }
 
 export function TechnicianAreasPage() {
   const { profile } = useAuth()
   const { toast } = useToast()
-  const [areas, setAreas] = useState<WorkingArea[]>([])
-  const [serviceAreas, setServiceAreas] = useState<ServiceArea[]>([])
   const [loading, setLoading] = useState(true)
-  const [submitting, setSubmitting] = useState(false)
-  const [form, setForm] = useState({ district: '', city: '', pincode: '' })
+  const [areas, setAreas] = useState<WorkArea[]>([])
+  const [newDistrict, setNewDistrict] = useState('')
+  const [adding, setAdding] = useState(false)
+  const [toggling, setToggling] = useState<string | null>(null)
+  const [removing, setRemoving] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!profile?.id) return
-    let mounted = true
-    ;(async () => {
-      setLoading(true)
-      const [wa, sa] = await Promise.all([
-        supabase.from('technician_working_areas').select('*').eq('technician_id', profile.id).order('created_at', { ascending: false }),
-        supabase.from('service_areas').select('*').eq('is_active', true).order('district', { ascending: true }),
-      ])
-      if (!mounted) return
-      setAreas((wa.data ?? []) as WorkingArea[])
-      setServiceAreas((sa.data ?? []) as ServiceArea[])
-      setLoading(false)
+    if (!profile) return
+    let mounted = true;
+    (async () => {
+      const { data } = await supabase
+        .from('technician_working_areas').select('*').eq('technician_id', profile.id).order('created_at', { ascending: false })
+      if (mounted) { setAreas((data || []) as WorkArea[]); setLoading(false) }
     })()
     return () => { mounted = false }
-  }, [profile?.id])
+  }, [profile])
 
-  const uniqueDistricts = [...new Set(serviceAreas.map((s) => s.district))].sort()
-  const cityOptions = serviceAreas.filter((s) => !form.district || s.district === form.district)
+  if (loading) return <LoadingScreen />
 
-  const handleAdd = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!profile?.id || !form.district || !form.city || !form.pincode) return
-    setSubmitting(true)
-    try {
-      const { data, error } = await supabase
-        .from('technician_working_areas')
-        .insert({ technician_id: profile.id, ...form })
-        .select()
-        .single()
-      if (error) throw error
-      setAreas((prev) => [data as WorkingArea, ...prev])
-      setForm({ district: '', city: '', pincode: '' })
-      toast({ title: 'Working area added', variant: 'success' })
-    } catch (err) {
-      toast({ title: 'Failed to add area', description: (err as Error).message, variant: 'error' })
-    } finally {
-      setSubmitting(false)
-    }
+  const availableDistricts = TAMIL_NADU_DISTRICTS.filter((d) => !areas.some((a) => a.district === d))
+
+  const addArea = async () => {
+    if (!profile || !newDistrict) return
+    setAdding(true)
+    const { data, error } = await supabase
+      .from('technician_working_areas').insert({ technician_id: profile.id, district: newDistrict, is_available: true })
+      .select().single()
+    if (error) { toast(error.message, 'error'); setAdding(false); return }
+    setAreas((prev) => [data as WorkArea, ...prev])
+    setNewDistrict('')
+    toast('Working area added successfully', 'success')
+    setAdding(false)
   }
 
-  const handleDelete = async (id: string) => {
-    try {
-      const { error } = await supabase.from('technician_working_areas').delete().eq('id', id)
-      if (error) throw error
-      setAreas((prev) => prev.filter((a) => a.id !== id))
-      toast({ title: 'Area removed', variant: 'success' })
-    } catch (err) {
-      toast({ title: 'Delete failed', description: (err as Error).message, variant: 'error' })
-    }
+  const removeArea = async (id: string) => {
+    setRemoving(id)
+    const { error } = await supabase.from('technician_working_areas').delete().eq('id', id)
+    if (error) { toast(error.message, 'error'); setRemoving(null); return }
+    setAreas((prev) => prev.filter((a) => a.id !== id))
+    toast('Working area removed', 'success')
+    setRemoving(null)
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-      </div>
-    )
+  const toggleArea = async (area: WorkArea) => {
+    setToggling(area.id)
+    const { error } = await supabase
+      .from('technician_working_areas').update({ is_available: !area.is_available }).eq('id', area.id)
+    if (error) { toast(error.message, 'error'); setToggling(null); return }
+    setAreas((prev) => prev.map((a) => a.id === area.id ? { ...a, is_available: !a.is_available } : a))
+    toast(`Area is now ${!area.is_available ? 'available' : 'unavailable'}`, 'success')
+    setToggling(null)
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Working Areas</h1>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Working Areas</h1>
+        <p className="text-sm text-gray-600">Manage the districts where you are available to work</p>
+      </div>
 
+      {/* Add New Area */}
       <Card>
-        <CardHeader><CardTitle>Add New Area</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Plus className="h-5 w-5 text-blue-600" />Add New Area</CardTitle>
+        </CardHeader>
         <CardContent>
-          <form onSubmit={handleAdd} className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="district">District</Label>
-              <Select id="district" value={form.district} onChange={(e) => setForm({ ...form, district: e.target.value, city: '' })} required>
-                <option value="">Select district</option>
-                {uniqueDistricts.map((d) => <option key={d} value={d}>{d}</option>)}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="flex-1">
+              <Label htmlFor="district">Select District</Label>
+              <Select id="district" value={newDistrict} onChange={(e) => setNewDistrict(e.target.value)}>
+                <option value="">Select a district</option>
+                {availableDistricts.map((d) => <option key={d} value={d}>{d}</option>)}
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="city">City</Label>
-              <Select id="city" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} required disabled={!form.district}>
-                <option value="">Select city</option>
-                {[...new Set(cityOptions.map((s) => s.city))].map((c) => <option key={c} value={c}>{c}</option>)}
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="pincode">Pincode</Label>
-              <Input id="pincode" value={form.pincode} onChange={(e) => setForm({ ...form, pincode: e.target.value })} placeholder="e.g. 600001" required />
-            </div>
-            <div className="sm:col-span-3">
-              <Button type="submit" className="w-full" disabled={submitting}>
-                {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
-                {submitting ? 'Adding...' : 'Add Area'}
-              </Button>
-            </div>
-          </form>
+            <Button disabled={!newDistrict || adding} onClick={addArea}>
+              <Plus className="mr-2 h-4 w-4" />
+              {adding ? 'Adding...' : 'Add Area'}
+            </Button>
+          </div>
+          {availableDistricts.length === 0 && (
+            <p className="mt-2 text-sm text-gray-500">All districts have been added. Remove an area to add a different one.</p>
+          )}
         </CardContent>
       </Card>
 
+      {/* Existing Areas */}
       <Card>
-        <CardHeader><CardTitle>Current Areas ({areas.length})</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><MapPin className="h-5 w-5 text-blue-600" />Your Areas ({areas.length})</CardTitle>
+        </CardHeader>
         <CardContent>
           {areas.length === 0 ? (
             <div className="py-12 text-center">
-              <MapPin className="mx-auto mb-3 h-10 w-10 text-gray-300" />
-              <p className="text-sm text-gray-500">No working areas added yet.</p>
+              <MapPin className="mx-auto h-12 w-12 text-gray-300" />
+              <p className="mt-3 text-gray-500">No working areas added yet. Add a district to start receiving jobs.</p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {areas.map((a) => (
-                <div key={a.id} className="flex items-center justify-between rounded-lg border border-gray-100 p-4">
+                <div key={a.id} className="flex items-center justify-between rounded-lg border border-gray-200 p-3 hover:bg-gray-50">
                   <div className="flex items-center gap-3">
-                    <MapPin className="h-5 w-5 text-gray-400" />
+                    <div className={cn('flex h-10 w-10 items-center justify-center rounded-lg', a.is_available ? 'bg-green-50' : 'bg-gray-100')}>
+                      <MapPin className={cn('h-5 w-5', a.is_available ? 'text-green-600' : 'text-gray-400')} />
+                    </div>
                     <div>
                       <p className="font-medium text-gray-900">{a.district}</p>
-                      <p className="text-sm text-gray-500">{a.city} · {a.pincode}</p>
+                      <Badge color={a.is_available ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}>
+                        {a.is_available ? 'Available' : 'Unavailable'}
+                      </Badge>
                     </div>
                   </div>
-                  <Button size="sm" variant="ghost" onClick={() => handleDelete(a.id)}>
-                    <Trash2 className="h-4 w-4 text-red-500" />
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" disabled={toggling === a.id} onClick={() => toggleArea(a)}>
+                      <Power className="mr-1 h-4 w-4" />
+                      {toggling === a.id ? '...' : a.is_available ? 'Disable' : 'Enable'}
+                    </Button>
+                    <Button variant="danger" size="sm" disabled={removing === a.id} onClick={() => removeArea(a.id)}>
+                      <Trash2 className="mr-1 h-4 w-4" />
+                      {removing === a.id ? '...' : 'Remove'}
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>

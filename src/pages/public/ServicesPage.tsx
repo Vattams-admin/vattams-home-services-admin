@@ -1,88 +1,68 @@
-import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Loader as Loader2, ArrowRight, Phone } from 'lucide-react'
-import { supabase, type ServiceCategory } from '@/lib/supabase'
+import {
+  Wind, Sparkles, Snowflake, Droplets, Zap, Wrench, Cctv, Shield, ArrowRight,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { PRIMARY_PHONE_DISPLAY, telLink, PRIMARY_PHONE } from '@/lib/constants'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
-const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
-  Wind: (p) => <span className="text-2xl">💨</span>,
-  Sparkles: (p) => <span className="text-2xl">✨</span>,
-  Snowflake: (p) => <span className="text-2xl">❄️</span>,
-  WashingMachine: (p) => <span className="text-2xl">🧺</span>,
-  Droplets: (p) => <span className="text-2xl">💧</span>,
-  Zap: (p) => <span className="text-2xl">⚡</span>,
-  Wrench: (p) => <span className="text-2xl">🔧</span>,
-  Cctv: (p) => <span className="text-2xl">📷</span>,
-}
+const services = [
+  { icon: Wind, title: 'AC Service', desc: 'AC installation, uninstallation, gas refill, general service, and major repairs for all brands including split, window, and cassette ACs.', price: '₹399 onwards', features: ['Gas refill & pressure check', 'Coil & filter cleaning', 'Cooling performance test'] },
+  { icon: Sparkles, title: 'Washing Machine', desc: 'Repair and servicing for top-load, front-load, and semi-automatic washing machines of all brands.', price: '₹299 onwards', features: ['Drum & motor inspection', 'Drainage & inlet repair', 'Spin cycle test'] },
+  { icon: Snowflake, title: 'Refrigerator', desc: 'Cooling issues, gas refill, compressor repair, and general maintenance for single and double-door fridges.', price: '₹349 onwards', features: ['Cooling performance check', 'Thermostat & compressor test', 'Gas refill & leak detection'] },
+  { icon: Droplets, title: 'Plumbing', desc: 'Leak detection, tap fitting, motor repair, bathroom and kitchen plumbing, and drainage solutions.', price: '₹199 onwards', features: ['Leak detection & repair', 'Tap & pipe fitting', 'Motor & pump service'] },
+  { icon: Zap, title: 'Electrical', desc: 'Wiring, switchboard repair, fan and light installation, and general electrical maintenance.', price: '₹199 onwards', features: ['Wiring & switchboard repair', 'Fan & light installation', 'Safety inspection'] },
+  { icon: Wrench, title: 'General Repair', desc: 'Home appliance repair, furniture assembly, and general home maintenance services.', price: '₹249 onwards', features: ['Appliance diagnosis', 'Furniture assembly', 'General maintenance'] },
+  { icon: Cctv, title: 'CCTV Installation', desc: 'Security camera installation, DVR setup, configuration, and surveillance system maintenance.', price: '₹499 onwards', features: ['Camera installation', 'DVR & NVR setup', 'Remote monitoring setup'] },
+  { icon: Shield, title: 'Pest Control', desc: 'Termite treatment, cockroach control, rodent management, and general pest disinfection.', price: '₹599 onwards', features: ['Termite & cockroach control', 'Rodent management', 'Safe & eco-friendly chemicals'] },
+]
 
 export function ServicesPage() {
-  const [services, setServices] = useState<ServiceCategory[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    supabase
-      .from('service_categories')
-      .select('*')
-      .eq('is_active', true)
-      .order('sort_order')
-      .then(({ data, error }) => {
-        if (!error && data) setServices(data as ServiceCategory[])
-        setLoading(false)
-      })
-  }, [])
-
   return (
-    <div>
-      <section className="bg-gradient-to-br from-blue-700 to-blue-800 py-16 text-white">
-        <div className="mx-auto max-w-7xl px-4 text-center">
-          <h1 className="text-4xl font-bold">Our Services</h1>
-          <p className="mt-2 text-blue-100">Professional home services at affordable prices</p>
+    <div className="py-12">
+      <div className="mx-auto max-w-7xl px-4">
+        <div className="text-center">
+          <h1 className="text-4xl font-bold text-gray-900">Our Services</h1>
+          <p className="mx-auto mt-3 max-w-2xl text-lg text-gray-600">
+            Professional home services at transparent prices. All services include a
+            satisfaction guarantee and verified technicians.
+          </p>
         </div>
-      </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-16">
-        {loading ? (
-          <div className="flex justify-center py-20">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-          </div>
-        ) : services.length === 0 ? (
-          <p className="py-20 text-center text-gray-500">No services available at the moment. Please check back soon.</p>
-        ) : (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {services.map((s) => {
-              const Icon = iconMap[s.icon]
-              return (
-                <Card key={s.id} className="flex flex-col transition-shadow hover:shadow-md">
-                  <CardContent className="flex flex-1 flex-col p-6">
-                    <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-lg bg-blue-50">
-                      {Icon ? <Icon className="h-7 w-7 text-blue-600" /> : <span className="text-2xl">🛠️</span>}
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-900">{s.name}</h3>
-                    {s.name_ta && <p className="text-sm text-gray-400">{s.name_ta}</p>}
-                    {s.description && <p className="mt-2 flex-1 text-sm text-gray-600">{s.description}</p>}
-                    <div className="mt-4 flex items-center justify-between">
-                      <span className="text-lg font-bold text-blue-600">₹{s.base_price}</span>
-                      <Button asChild size="sm">
-                        <Link to="/register/customer">Book Now <ArrowRight className="ml-1 h-3 w-3" /></Link>
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              )
-            })}
-          </div>
-        )}
-
-        <div className="mt-12 rounded-xl bg-blue-50 p-8 text-center">
-          <h3 className="text-xl font-semibold text-gray-900">Need help choosing a service?</h3>
-          <p className="mt-1 text-gray-600">Call us and our team will guide you.</p>
-          <Button asChild className="mt-4">
-            <a href={telLink(PRIMARY_PHONE)}><Phone className="mr-2 h-4 w-4" /> {PRIMARY_PHONE_DISPLAY}</a>
-          </Button>
+        <div className="mt-12 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {services.map((s) => (
+            <Card key={s.title} className="flex flex-col transition-shadow hover:shadow-md">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="rounded-lg bg-blue-50 p-3">
+                    <s.icon className="h-8 w-8 text-blue-600" />
+                  </div>
+                  <div>
+                    <CardTitle>{s.title}</CardTitle>
+                    <p className="mt-1 text-sm font-medium text-blue-600">{s.price}</p>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="flex flex-1 flex-col">
+                <p className="text-sm text-gray-600">{s.desc}</p>
+                <ul className="mt-4 space-y-2">
+                  {s.features.map((f) => (
+                    <li key={f} className="flex items-center gap-2 text-sm text-gray-600">
+                      <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-6 flex-1" />
+                <Link to="/register/customer" className="mt-4">
+                  <Button className="w-full">
+                    Book Now <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          ))}
         </div>
-      </section>
+      </div>
     </div>
   )
 }

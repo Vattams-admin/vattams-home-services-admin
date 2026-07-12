@@ -1,124 +1,114 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Calendar, CircleCheck as CheckCircle, Clock, Loader as Loader2, Plus, Wallet } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Calendar, CheckCircle, CreditCard, TrendingUp, Plus, ArrowRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Booking } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { LoadingScreen } from '@/components/LoadingScreen'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { BOOKING_STATUS_COLORS, BOOKING_STATUS_FLOW, formatCurrency, formatDate } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { formatDate, formatCurrency, BOOKING_STATUS_COLORS } from '@/lib/utils'
 
-const ACTIVE_STATUSES = ['created', 'confirmed', 'assigned', 'accepted', 'on_the_way', 'work_started']
+type Stats = { active: number; completed: number; pendingPayments: number; totalSpent: number }
 
 export function CustomerDashboardPage() {
   const { profile } = useAuth()
-  const [bookings, setBookings] = useState<Booking[]>([])
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
-  const [stats, setStats] = useState({ total: 0, active: 0, completed: 0, spent: 0 })
+  const [stats, setStats] = useState<Stats>({ active: 0, completed: 0, pendingPayments: 0, totalSpent: 0 })
+  const [bookings, setBookings] = useState<Booking[]>([])
 
   useEffect(() => {
-    if (!profile?.id) return
-    let mounted = true
-    ;(async () => {
-      setLoading(true)
-      const { data } = await supabase
-        .from('bookings')
-        .select('*')
-        .eq('customer_id', profile.id)
-        .order('created_at', { ascending: false })
-      if (!mounted) return
-      const all = (data ?? []) as Booking[]
-      setBookings(all.slice(0, 5))
-      setStats({
-        total: all.length,
-        active: all.filter((b) => ACTIVE_STATUSES.includes(b.status)).length,
-        completed: all.filter((b) => b.status === 'completed').length,
-        spent: all.filter((b) => b.status === 'completed').reduce((s, b) => s + Number(b.amount), 0),
-      })
-      setLoading(false)
+    if (!profile) return
+    let mounted = true;
+    (async () => {
+      const { data: bk } = await supabase
+        .from('bookings').select('*').eq('customer_id', profile.id).order('created_at', { ascending: false })
+      if (!mounted || !bk) return
+      const all = bk as Booking[]
+      const active = all.filter((b) => !['completed', 'cancelled'].includes(b.status)).length
+      const completed = all.filter((b) => b.status === 'completed').length
+      const { data: inv } = await supabase
+        .from('invoices').select('amount, status').eq('customer_id', profile.id)
+      const invoices = inv || []
+      const pendingPayments = invoices.filter((i) => i.status === 'pending').length
+      const totalSpent = invoices.filter((i) => i.status === 'paid').reduce((s, i) => s + Number(i.amount), 0)
+      if (mounted) {
+        setStats({ active, completed, pendingPayments, totalSpent })
+        setBookings(all.slice(0, 5))
+        setLoading(false)
+      }
     })()
     return () => { mounted = false }
-  }, [profile?.id])
+  }, [profile])
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-      </div>
-    )
-  }
+  if (loading) return <LoadingScreen />
 
-  const cards = [
-    { label: 'Total Bookings', value: stats.total, icon: Calendar, color: 'text-blue-600 bg-blue-100' },
-    { label: 'Active Bookings', value: stats.active, icon: Clock, color: 'text-amber-600 bg-amber-100' },
-    { label: 'Completed', value: stats.completed, icon: CheckCircle, color: 'text-green-600 bg-green-100' },
-    { label: 'Total Spent', value: formatCurrency(stats.spent), icon: Wallet, color: 'text-purple-600 bg-purple-100' },
+  const statCards = [
+    { label: 'Active Bookings', value: stats.active, icon: Calendar, color: 'text-blue-600 bg-blue-50' },
+    { label: 'Completed Services', value: stats.completed, icon: CheckCircle, color: 'text-green-600 bg-green-50' },
+    { label: 'Pending Payments', value: stats.pendingPayments, icon: CreditCard, color: 'text-amber-600 bg-amber-50' },
+    { label: 'Total Spent', value: formatCurrency(stats.totalSpent), icon: TrendingUp, color: 'text-purple-600 bg-purple-50' },
   ]
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Welcome, {profile?.name || 'Customer'}!
-          </h1>
-          <p className="text-sm text-gray-500">Here's an overview of your service bookings.</p>
+          <h1 className="text-2xl font-bold text-gray-900">Welcome, {profile?.name}!</h1>
+          <p className="text-sm text-gray-600">Here's an overview of your account</p>
         </div>
-        <Button asChild>
-          <Link to="/customer/booking">
-            <Plus className="mr-2 h-4 w-4" /> Book a Service
-          </Link>
+        <Button onClick={() => navigate('/customer/booking')}>
+          <Plus className="mr-2 h-4 w-4" /> Book New Service
         </Button>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {cards.map((c) => (
-          <Card key={c.label}>
-            <CardContent className="flex items-center gap-4 p-5">
-              <div className={`rounded-lg p-3 ${c.color}`}>
-                <c.icon className="h-6 w-6" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">{c.label}</p>
-                <p className="text-xl font-bold text-gray-900">{c.value}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+        {statCards.map((s) => {
+          const Icon = s.icon
+          return (
+            <Card key={s.label}>
+              <CardContent className="flex items-center gap-4 p-4">
+                <div className={`flex h-12 w-12 items-center justify-center rounded-lg ${s.color}`}>
+                  <Icon className="h-6 w-6" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">{s.label}</p>
+                  <p className="text-xl font-bold text-gray-900">{s.value}</p>
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })}
       </div>
 
       <Card>
-        <CardHeader className="flex-row items-center justify-between space-y-0">
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Recent Bookings</CardTitle>
-          <Button variant="ghost" size="sm" asChild>
-            <Link to="/customer/bookings">View all</Link>
+          <Button variant="ghost" size="sm" onClick={() => navigate('/customer/bookings')}>
+            View All <ArrowRight className="ml-1 h-4 w-4" />
           </Button>
         </CardHeader>
         <CardContent>
           {bookings.length === 0 ? (
             <div className="py-12 text-center">
-              <Calendar className="mx-auto mb-3 h-10 w-10 text-gray-300" />
-              <p className="text-sm text-gray-500">No bookings yet. Book your first service!</p>
-              <Button className="mt-4" asChild>
-                <Link to="/customer/booking">Book a Service</Link>
+              <p className="text-gray-500">No bookings yet. Book your first service!</p>
+              <Button className="mt-4" onClick={() => navigate('/customer/booking')}>
+                <Plus className="mr-2 h-4 w-4" /> Book New Service
               </Button>
             </div>
           ) : (
             <div className="space-y-3">
               {bookings.map((b) => (
-                <div key={b.id} className="flex items-center justify-between rounded-lg border border-gray-100 p-4">
+                <div key={b.id} className="flex items-center justify-between rounded-lg border border-gray-200 p-3 hover:bg-gray-50">
                   <div className="min-w-0">
                     <p className="font-medium text-gray-900">{b.service_name}</p>
-                    <p className="text-sm text-gray-500">
-                      {b.booking_number} · {formatDate(b.scheduled_date)}
-                    </p>
+                    <p className="text-sm text-gray-500">{b.booking_number} · {formatDate(b.scheduled_date)}</p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-sm font-semibold text-gray-900">{formatCurrency(b.amount)}</span>
-                    <Badge className={BOOKING_STATUS_COLORS[b.status]}>
-                      {BOOKING_STATUS_FLOW[b.status] ?? b.status}
-                    </Badge>
+                    <span className="text-sm font-medium text-gray-900">{formatCurrency(b.amount)}</span>
+                    <Badge color={BOOKING_STATUS_COLORS[b.status]}>{b.status.replace(/_/g, ' ')}</Badge>
                   </div>
                 </div>
               ))}

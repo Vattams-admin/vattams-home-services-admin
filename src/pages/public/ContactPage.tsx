@@ -1,138 +1,130 @@
-import { useState } from 'react'
-import { Phone, Mail, MessageCircle, MapPin, Send } from 'lucide-react'
+import { useState, type FormEvent } from 'react'
+import { Phone, MessageCircle, PlayCircle, MapPin, Mail, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input, Textarea } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useToast } from '@/hooks/use-toast'
+import { sanitizeInput } from '@/lib/utils'
 import {
-  PRIMARY_PHONE_DISPLAY, SUPPORT_PHONE_DISPLAY, PRIMARY_PHONE, SUPPORT_PHONE,
+  PRIMARY_PHONE, SUPPORT_PHONE, WHATSAPP_NUMBER, YOUTUBE_URL, YOUTUBE_CHANNEL,
   telLink, whatsappSupportLink,
 } from '@/lib/constants'
 
+const contactInfo = [
+  { icon: Phone, title: 'Phone', value: PRIMARY_PHONE, href: telLink(PRIMARY_PHONE), desc: 'Mon-Sun, 8am - 8pm' },
+  { icon: MessageCircle, title: 'WhatsApp', value: 'Chat with us', href: whatsappSupportLink('Hello VATTAMS, I have a query.'), desc: WHATSAPP_NUMBER },
+  { icon: PlayCircle, title: 'YouTube', value: YOUTUBE_CHANNEL, href: YOUTUBE_URL, desc: 'Watch tutorials & tips' },
+  { icon: MapPin, title: 'Address', value: 'Tamil Nadu, India', href: null, desc: 'Serving across Tamil Nadu' },
+]
+
 export function ContactPage() {
-  const [form, setForm] = useState({ name: '', email: '', mobile: '', message: '' })
-  const [submitted, setSubmitted] = useState(false)
+  const { toast } = useToast()
+  const [submitting, setSubmitting] = useState(false)
+  const [form, setForm] = useState({ name: '', email: '', phone: '', message: '' })
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setForm({ ...form, [e.target.name]: e.target.value })
-  }
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    setSubmitted(true)
-    setForm({ name: '', email: '', mobile: '', message: '' })
+    setSubmitting(true)
+    try {
+      await new Promise((r) => setTimeout(r, 800))
+      toast('Your message has been sent. We will contact you soon!', 'success')
+      setForm({ name: '', email: '', phone: '', message: '' })
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
-    <div>
-      <section className="bg-gradient-to-br from-blue-700 to-blue-800 py-16 text-white">
-        <div className="mx-auto max-w-7xl px-4 text-center">
-          <h1 className="text-4xl font-bold">Contact Us</h1>
-          <p className="mt-2 text-blue-100">We're here to help with any questions or service requests</p>
+    <div className="py-12">
+      <div className="mx-auto max-w-7xl px-4">
+        <div className="text-center">
+          <h1 className="text-4xl font-bold text-gray-900">Contact Us</h1>
+          <p className="mx-auto mt-3 max-w-2xl text-lg text-gray-600">
+            Have a question or need help? Reach out to us — we're here to serve you.
+          </p>
         </div>
-      </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-16">
-        <div className="grid gap-8 lg:grid-cols-2">
+        <div className="mt-12 grid grid-cols-1 gap-8 lg:grid-cols-2">
           {/* Contact Info */}
-          <div className="space-y-6">
-            <Card>
-              <CardContent className="p-6">
-                <h3 className="mb-4 text-lg font-semibold text-gray-900">Get in Touch</h3>
-                <div className="space-y-4">
-                  <a href={telLink(PRIMARY_PHONE)} className="flex items-center gap-3 text-gray-700 hover:text-blue-600">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50">
-                      <Phone className="h-5 w-5 text-blue-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Primary Phone</p>
-                      <p className="font-medium">{PRIMARY_PHONE_DISPLAY}</p>
-                    </div>
-                  </a>
-                  <a href={telLink(SUPPORT_PHONE)} className="flex items-center gap-3 text-gray-700 hover:text-blue-600">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50">
-                      <Phone className="h-5 w-5 text-blue-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Support Phone</p>
-                      <p className="font-medium">{SUPPORT_PHONE_DISPLAY}</p>
-                    </div>
-                  </a>
-                  <a href={whatsappSupportLink('Hello VATTAMS, I need assistance.')} className="flex items-center gap-3 text-gray-700 hover:text-green-600">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-50">
-                      <MessageCircle className="h-5 w-5 text-green-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">WhatsApp</p>
-                      <p className="font-medium">Chat with us</p>
-                    </div>
-                  </a>
-                  <a href="mailto:support@vattams.com" className="flex items-center gap-3 text-gray-700 hover:text-blue-600">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50">
-                      <Mail className="h-5 w-5 text-blue-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Email</p>
-                      <p className="font-medium">support@vattams.com</p>
-                    </div>
-                  </a>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center gap-2 text-gray-900">
-                  <MapPin className="h-5 w-5 text-blue-600" />
-                  <h3 className="text-lg font-semibold">Our Location</h3>
-                </div>
-                <div className="mt-4 h-48 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400">
-                  <MapPin className="h-10 w-10" />
-                </div>
-                <p className="mt-3 text-sm text-gray-500">Serving across Tamil Nadu, India</p>
-              </CardContent>
-            </Card>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {contactInfo.map((c) => (
+              <Card key={c.title}>
+                <CardContent className="flex flex-col items-start p-6">
+                  <div className="rounded-lg bg-blue-50 p-3">
+                    <c.icon className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <h3 className="mt-4 font-semibold text-gray-900">{c.title}</h3>
+                  {c.href ? (
+                    <a href={c.href} target={c.href.startsWith('http') ? '_blank' : undefined} rel="noreferrer" className="mt-1 text-sm font-medium text-blue-600 hover:text-blue-700">
+                      {c.value}
+                    </a>
+                  ) : (
+                    <p className="mt-1 text-sm font-medium text-gray-900">{c.value}</p>
+                  )}
+                  <p className="mt-1 text-xs text-gray-500">{c.desc}</p>
+                </CardContent>
+              </Card>
+            ))}
           </div>
 
           {/* Contact Form */}
           <Card>
-            <CardContent className="p-6">
-              <h3 className="mb-4 text-lg font-semibold text-gray-900">Send a Message</h3>
-              {submitted ? (
-                <div className="rounded-lg bg-green-50 p-6 text-center">
-                  <p className="font-medium text-green-700">Thank you for reaching out!</p>
-                  <p className="mt-1 text-sm text-green-600">We'll get back to you shortly.</p>
-                  <Button variant="outline" className="mt-4" onClick={() => setSubmitted(false)}>
-                    Send Another Message
-                  </Button>
+            <CardHeader>
+              <CardTitle>Send us a message</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <Label htmlFor="name">Name</Label>
+                  <Input
+                    id="name"
+                    required
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: sanitizeInput(e.target.value) })}
+                    placeholder="Your name"
+                  />
                 </div>
-              ) : (
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div>
-                    <Label htmlFor="name">Name</Label>
-                    <Input id="name" name="name" value={form.name} onChange={handleChange} required placeholder="Your name" />
-                  </div>
-                  <div>
-                    <Label htmlFor="email">Email</Label>
-                    <Input id="email" name="email" type="email" value={form.email} onChange={handleChange} required placeholder="you@example.com" />
-                  </div>
-                  <div>
-                    <Label htmlFor="mobile">Mobile</Label>
-                    <Input id="mobile" name="mobile" value={form.mobile} onChange={handleChange} required placeholder="+91 98765 43210" />
-                  </div>
-                  <div>
-                    <Label htmlFor="message">Message</Label>
-                    <Textarea id="message" name="message" value={form.message} onChange={handleChange} required rows={4} placeholder="How can we help you?" />
-                  </div>
-                  <Button type="submit" className="w-full">
-                    <Send className="mr-2 h-4 w-4" /> Send Message
-                  </Button>
-                </form>
-              )}
+                <div>
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    required
+                    value={form.email}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    placeholder="you@example.com"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="phone">Phone</Label>
+                  <Input
+                    id="phone"
+                    required
+                    value={form.phone}
+                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                    placeholder="9876543210"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="message">Message</Label>
+                  <Textarea
+                    id="message"
+                    required
+                    rows={4}
+                    value={form.message}
+                    onChange={(e) => setForm({ ...form, message: sanitizeInput(e.target.value) })}
+                    placeholder="How can we help you?"
+                  />
+                </div>
+                <Button type="submit" disabled={submitting} className="w-full">
+                  {submitting ? 'Sending...' : <>Send Message <Send className="ml-2 h-4 w-4" /></>}
+                </Button>
+              </form>
             </CardContent>
           </Card>
         </div>
-      </section>
+      </div>
     </div>
   )
 }
