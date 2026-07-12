@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
-import { Clock, Circle as XCircle, Ban, CreditCard, FileSearch } from 'lucide-react'
+import { Clock, XCircle, Ban, CreditCard, FileSearch } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { LoadingScreen } from '@/components/LoadingScreen'
 import { VERIFICATION_STATUS_LABELS } from '@/lib/utils'
@@ -24,11 +24,9 @@ export function ProtectedRoute({ allowedRoles, children }: Props) {
   const location = useLocation()
   if (loading) return <LoadingScreen message="Checking your session..." />
   if (!session) return <Navigate to="/login" state={{ from: location }} replace />
-
   if (profile) {
     const role = profile.role === 'super_admin' ? 'admin' : profile.role
     if (!allowedRoles.includes(role) && !allowedRoles.includes(profile.role)) return <Navigate to="/" replace />
-
     if (role === 'technician') {
       const vs = profile.verification_status || 'pending_registration'
       if (vs !== 'approved') {

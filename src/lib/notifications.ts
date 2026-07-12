@@ -17,3 +17,10 @@ export function statusTimeline(status: BookingStatus | undefined): { label: stri
   const labels = ['Created', 'Confirmed', 'Assigned', 'Accepted', 'On the Way', 'Arrived', 'Work Started', 'Completed']
   return flow.map((s, i) => ({ label: labels[i], done: i <= idx }))
 }
+export async function trackEvent(eventName: string, eventCategory = 'engagement', metadata?: Record<string, unknown>) {
+  try {
+    const sessionId = sessionStorage.getItem('session_id') || Math.random().toString(36).slice(2)
+    if (!sessionStorage.getItem('session_id')) sessionStorage.setItem('session_id', sessionId)
+    await supabase.from('analytics_events').insert({ event_name: eventName, event_category: eventCategory, page_url: window.location.pathname, session_id: sessionId, metadata: metadata || {} })
+  } catch (e) { console.error('Failed to track event:', e) }
+}

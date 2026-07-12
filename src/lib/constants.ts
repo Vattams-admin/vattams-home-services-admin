@@ -1,6 +1,8 @@
 export const PRIMARY_PHONE = '8189800757'
 export const SUPPORT_PHONE = '8189800757'
+export const TECHNICIAN_SUPPORT_PHONE = '8189800767'
 export const WHATSAPP_NUMBER = '918189800757'
+export const TECHNICIAN_WHATSAPP_NUMBER = '918189800767'
 export const YOUTUBE_URL = 'https://www.youtube.com/@vattams'
 export const YOUTUBE_CHANNEL = '@vattams'
 
@@ -10,6 +12,7 @@ export function whatsappLink(phone: string, message?: string) {
   return `https://wa.me/${phone}${text}`
 }
 export function whatsappSupportLink(message?: string) { return whatsappLink(WHATSAPP_NUMBER, message) }
+export function whatsappTechnicianLink(message?: string) { return whatsappLink(TECHNICIAN_WHATSAPP_NUMBER, message) }
 
 export const TAMIL_NADU_DISTRICTS = [
   'Ariyalur', 'Chengalpattu', 'Chennai', 'Coimbatore', 'Cuddalore',
@@ -29,3 +32,16 @@ export const SERVICE_CITIES = [
 
 export const VERIFICATION_FEE = 50
 export const REFUND_ELIGIBLE_JOBS = 4
+
+export const SERVICE_CATEGORIES = [
+  'AC Service', 'Washing Machine', 'Refrigerator', 'Plumbing',
+  'Electrical', 'General Repair', 'CCTV', 'Pest Control',
+]
+
+export const COUPON_OFFER_TYPES = [
+  'flat', 'percentage', 'festival', 'seasonal', 'first_booking', 'referral',
+] as const
+
+export const SOCIAL_PLATFORMS = [
+  'Facebook', 'Instagram', 'YouTube', 'WhatsApp Business', 'LinkedIn', 'X (Twitter)', 'Telegram',
+] as const
