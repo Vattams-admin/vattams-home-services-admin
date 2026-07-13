@@ -65,11 +65,7 @@ export default function RegisterPage() {
 
     setLoading(true);
     try {
-      const { error: signUpError } = await signUp(email, password, mobile.trim(), name.trim(), role);
-      if (signUpError) {
-        setError(signUpError);
-        return;
-      }
+      await signUp(email, password, mobile.trim(), name.trim(), role);
       setSuccess('Account created successfully! Redirecting you to login...');
       setTimeout(() => navigate('/login'), 2500);
     } catch (err) {
