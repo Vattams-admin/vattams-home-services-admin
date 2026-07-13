@@ -37,7 +37,11 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      await signIn(email, password);
+      const { error: signInError } = await signIn(email, password);
+      if (signInError) {
+        setError(signInError);
+        return;
+      }
       navigate(roleRedirects[role]);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to sign in. Please check your credentials.';
