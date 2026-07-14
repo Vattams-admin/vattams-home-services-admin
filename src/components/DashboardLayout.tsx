@@ -1,7 +1,8 @@
-import { useState } from 'react'
-import { Link, Outlet, useNavigate } from 'react-router-dom'
+import { useState, useContext } from 'react'
+import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { LayoutDashboard, Users, Wrench, CalendarCheck, MapPin, CreditCard, BarChart3, Settings, Bell, Ticket, FileText, Gift, Megaphone, Bot, Building2, Mail, File as FileEdit, Star, TrendingUp, LogOut, Menu, X, User, Wallet, Briefcase, MapPinned, DollarSign, MessageSquare } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
+import { AdminAuthContext } from '@/lib/admin-auth'
 import { cn } from '@/lib/utils'
 
 const adminNav = [
@@ -35,12 +36,23 @@ const customerNav = [
 
 export function DashboardLayout() {
   const { profile, signOut } = useAuth()
+  const adminCtx = useContext(AdminAuthContext)
   const navigate = useNavigate()
+  const location = useLocation()
   const [open, setOpen] = useState(false)
-  const role = profile?.role === 'super_admin' ? 'admin' : profile?.role
+  const isAdminArea = location.pathname.startsWith('/admin')
+  const role = isAdminArea ? 'admin' : profile?.role === 'super_admin' ? 'admin' : profile?.role
   const nav = role === 'admin' ? adminNav : role === 'technician' ? technicianNav : customerNav
 
-  const handleSignOut = async () => { await signOut(); navigate('/') }
+  const handleSignOut = async () => {
+    if (isAdminArea && adminCtx) {
+      adminCtx.logout()
+      navigate('/admin/login', { replace: true })
+    } else {
+      await signOut()
+      navigate('/')
+    }
+  }
 
   return (
     <div className="flex min-h-screen bg-slate-50">

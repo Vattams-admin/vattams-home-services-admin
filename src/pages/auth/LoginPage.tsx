@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Loader as Loader2, LogIn, Chrome as Home, CircleAlert as AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,7 +17,7 @@ const roleRedirects: Record<Role, string> = {
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { signIn } = useAuth();
+  const { signIn, session, loading: authLoading } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -25,6 +25,20 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [pendingRedirect, setPendingRedirect] = useState(false);
+
+  useEffect(() => {
+    if (pendingRedirect && session && !authLoading) {
+      setPendingRedirect(false);
+      navigate(roleRedirects[role]);
+    }
+  }, [pendingRedirect, session, authLoading, navigate, role]);
+
+  useEffect(() => {
+    if (session && !authLoading && !pendingRedirect) {
+      navigate(roleRedirects[role]);
+    }
+  }, [session, authLoading, navigate, role, pendingRedirect]);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -37,12 +51,16 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      await signIn(email, password);
-      navigate(roleRedirects[role]);
+      const { error: signInError } = await signIn(email, password);
+      if (signInError) {
+        setError(signInError);
+        setLoading(false);
+        return;
+      }
+      setPendingRedirect(true);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to sign in. Please check your credentials.';
       setError(message);
-    } finally {
       setLoading(false);
     }
   };

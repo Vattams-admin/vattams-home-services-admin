@@ -1,11 +1,13 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from '@/lib/auth'
+import { AdminAuthProvider } from '@/lib/admin-auth'
 import { I18nProvider } from '@/lib/i18n'
 import { ToastProvider } from '@/hooks/use-toast'
 import { PublicLayout } from '@/components/PublicLayout'
 import { DashboardLayout } from '@/components/DashboardLayout'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
+import { AdminProtectedRoute } from '@/components/AdminProtectedRoute'
 import { LoadingScreen, NotFoundPage } from '@/components/LoadingScreen'
 
 const HomePage = lazy(() => import('@/pages/public/HomePage'))
@@ -21,6 +23,7 @@ const ReviewsPage = lazy(() => import('@/pages/public/ReviewsPage'))
 const LoginPage = lazy(() => import('@/pages/auth/LoginPage'))
 const RegisterPage = lazy(() => import('@/pages/auth/RegisterPage'))
 const ForgotPasswordPage = lazy(() => import('@/pages/auth/ForgotPasswordPage'))
+const AdminPinLoginPage = lazy(() => import('@/pages/auth/AdminPinLogin'))
 
 const CustomerDashboardPage = lazy(() => import('@/pages/customer/CustomerDashboardPage'))
 const CustomerBookingsPage = lazy(() => import('@/pages/customer/CustomerBookingsPage'))
@@ -113,7 +116,9 @@ export default function App() {
                   <Route path="referrals" element={<TechnicianReferralPage />} />
                 </Route>
 
-                <Route path="/admin" element={<ProtectedRoute roles={['admin']}><DashboardLayout /></ProtectedRoute>}>
+                <Route path="/admin/login" element={<AdminPinLoginPage />} />
+
+                <Route path="/admin" element={<AdminAuthProvider><AdminProtectedRoute><DashboardLayout /></AdminProtectedRoute></AdminAuthProvider>}>
                   <Route index element={<AdminDashboardPage />} />
                   <Route path="verification" element={<AdminVerificationPage />} />
                   <Route path="bookings" element={<AdminBookingsPage />} />
