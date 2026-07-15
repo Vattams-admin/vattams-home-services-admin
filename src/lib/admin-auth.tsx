@@ -55,7 +55,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
       setSession(newSession)
       return { error: null }
     } catch {
-      return { error: 'Network error. Please try again.' }
+      return { error: 'Unable to connect. Please check your internet connection and try again.' }
     }
   }
 

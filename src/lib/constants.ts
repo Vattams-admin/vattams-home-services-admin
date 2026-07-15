@@ -34,8 +34,15 @@ export const VERIFICATION_FEE = 50
 export const REFUND_ELIGIBLE_JOBS = 4
 
 export const SERVICE_CATEGORIES = [
-  'AC Service', 'Washing Machine', 'Refrigerator', 'Plumbing',
-  'Electrical', 'General Repair', 'CCTV', 'Pest Control',
+  'AC Service',
+  'AC Installation',
+  'AC Gas Refill',
+  'Deep Cleaning',
+  'Refrigerator Repair',
+  'Washing Machine Repair',
+  'Electrician',
+  'Plumbing',
+  'CCTV Installation',
 ]
 
 export const COUPON_OFFER_TYPES = [

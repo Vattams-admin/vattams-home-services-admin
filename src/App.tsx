@@ -117,7 +117,7 @@ export default function App() {
                   <Route path="referrals" element={<TechnicianReferralPage />} />
                 </Route>
 
-                <Route path="/admin/login" element={<AdminPinLoginPage />} />
+                <Route path="/admin/login" element={<AdminAuthProvider><AdminPinLoginPage /></AdminAuthProvider>} />
 
                 {/* Public redirect routes */}
                 <Route path="/book" element={<Navigate to="/dashboard/book" replace />} />
@@ -127,6 +127,7 @@ export default function App() {
                 <Route path="/admin" element={<AdminAuthProvider><AdminProtectedRoute><DashboardLayout /></AdminProtectedRoute></AdminAuthProvider>}>
                   <Route index element={<AdminDashboardPage />} />
                   <Route path="verification" element={<AdminVerificationPage />} />
+                  <Route path="verifications" element={<AdminVerificationPage />} />
                   <Route path="bookings" element={<AdminBookingsPage />} />
                   <Route path="crm" element={<AdminCrmPage />} />
                   <Route path="customers" element={<AdminCustomersPage />} />

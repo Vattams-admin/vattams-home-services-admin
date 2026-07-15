@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Eye, EyeOff, Loader as Loader2, LogIn, Chrome as Home, CircleAlert as AlertCircle, ShieldCheck, Delete } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -20,6 +20,7 @@ const ADMIN_STORAGE_KEY = 'vattams_admin_session';
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { signIn, session, loading: authLoading } = useAuth();
 
   const [email, setEmail] = useState('');
@@ -37,15 +38,17 @@ export default function LoginPage() {
   useEffect(() => {
     if (pendingRedirect && session && !authLoading) {
       setPendingRedirect(false);
-      navigate(roleRedirects[role]);
+      const fromPath = (location.state as { from?: { pathname: string } } | null)?.from?.pathname;
+      navigate(fromPath || roleRedirects[role]);
     }
-  }, [pendingRedirect, session, authLoading, navigate, role]);
+  }, [pendingRedirect, session, authLoading, navigate, role, location]);
 
   useEffect(() => {
     if (session && !authLoading && !pendingRedirect && role !== 'admin') {
-      navigate(roleRedirects[role]);
+      const fromPath = (location.state as { from?: { pathname: string } } | null)?.from?.pathname;
+      navigate(fromPath || roleRedirects[role]);
     }
-  }, [session, authLoading, navigate, role, pendingRedirect]);
+  }, [session, authLoading, navigate, role, pendingRedirect, location]);
 
   const submitPin = useCallback(
     async (fullPin: string) => {
@@ -73,7 +76,7 @@ export default function LoginPage() {
         localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(adminSession));
         navigate('/admin', { replace: true });
       } catch {
-        setError('Network error. Please try again.');
+        setError('Unable to connect. Please check your internet connection and try again.');
         setPin('');
       } finally {
         setPinSubmitting(false);

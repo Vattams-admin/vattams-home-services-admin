@@ -36,26 +36,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signIn(email: string, password: string) {
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (!error) return { error: null }
-    if (error.message.includes('Email not confirmed')) {
-      return { error: 'Email not confirmed. Please check your inbox for a confirmation email, or contact support.' }
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      if (!error) return { error: null }
+      const msg = error.message || ''
+      if (msg.includes('Email not confirmed')) {
+        return { error: 'Email not confirmed. Please check your inbox or contact support at 8189800757.' }
+      }
+      if (msg.includes('Invalid login credentials')) {
+        return { error: 'Invalid email or password. Please try again.' }
+      }
+      return { error: msg }
+    } catch {
+      return { error: 'Unable to connect. Please check your internet connection and try again.' }
     }
-    return { error: error.message }
   }
 
   async function signUp(email: string, password: string, mobile: string, name: string, role: UserRole) {
-    const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { name, mobile, role } } })
-    if (error) return { error: error.message }
-    if (data.user) {
-      await supabase.from('profiles')
-        .upsert({
-          id: data.user.id, email, name, mobile, role,
-          verification_status: role === 'technician' ? 'pending_registration' : null,
-          status: role === 'technician' ? 'inactive' : 'active',
-        }, { onConflict: 'id' })
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+      const res = await fetch(`${supabaseUrl}/functions/v1/customer-signup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${anonKey}`,
+          apikey: anonKey,
+        },
+        body: JSON.stringify({ email, password, mobile, name, role }),
+      })
+      const data = await res.json()
+      if (!res.ok) return { error: data.error || 'Failed to create account' }
+      return { error: null }
+    } catch {
+      return { error: 'Unable to connect. Please check your internet connection and try again.' }
     }
-    return { error: null }
   }
 
   async function signOut() { await supabase.auth.signOut(); setProfile(null); setSession(null) }

@@ -16,13 +16,14 @@ const STEPS = ['Service', 'Details', 'Schedule', 'Review']
 
 const CATEGORY_BASE_PRICES: Record<string, number> = {
   'AC Service': 499,
-  'Washing Machine': 399,
-  Refrigerator: 399,
-  Plumbing: 299,
-  Electrical: 299,
-  'General Repair': 249,
-  CCTV: 599,
-  'Pest Control': 699,
+  'AC Installation': 1299,
+  'AC Gas Refill': 799,
+  'Deep Cleaning': 999,
+  'Refrigerator Repair': 399,
+  'Washing Machine Repair': 399,
+  'Electrician': 299,
+  'Plumbing': 299,
+  'CCTV Installation': 599,
 }
 
 const TIME_SLOTS = [
@@ -90,13 +91,23 @@ export default function BookingPage() {
     setSubmitting(true)
     try {
       const bookingNumber = `VH${Date.now().toString().slice(-8)}`
+
+      // Look up the service category UUID
+      let categoryId: string | null = null
+      const { data: catData } = await supabase
+        .from('service_categories')
+        .select('id')
+        .eq('name', category)
+        .maybeSingle()
+      if (catData) categoryId = catData.id
+
       const { data, error } = await supabase
         .from('bookings')
         .insert({
           booking_number: bookingNumber,
           customer_id: userId,
           service_name: serviceName,
-          service_category_id: category,
+          service_category_id: categoryId,
           status: 'created',
           scheduled_date: scheduledDate,
           scheduled_time: scheduledTime,
