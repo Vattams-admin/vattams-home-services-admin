@@ -8,7 +8,7 @@ type AdminSession = { token: string; expiresAt: number }
 type AdminAuthContextType = {
   isAuthenticated: boolean
   loading: boolean
-  login: (pin: string) => Promise<{ error: string | null }>
+  login: (email: string, password: string) => Promise<{ error: string | null }>
   logout: () => Promise<void>
 }
 
@@ -36,21 +36,21 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => { setSession(getStoredSession()); setLoading(false) }, [])
 
-  async function login(pin: string) {
+  async function login(email: string, password: string) {
     try {
-      if (!pin || pin.length < 6) {
-        return { error: 'PIN must be at least 6 digits' }
+      if (!email || !password) {
+        return { error: 'Please enter email and password.' }
       }
 
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: ADMIN_EMAIL,
-        password: pin,
+        email,
+        password,
       })
 
       if (error) {
         const msg = error.message || ''
         if (msg.includes('Invalid login credentials')) {
-          return { error: 'Invalid PIN. Please try again.' }
+          return { error: 'Invalid email or password. Please try again.' }
         }
         return { error: msg }
       }

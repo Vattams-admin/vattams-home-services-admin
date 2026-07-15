@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Eye, EyeOff, Loader as Loader2, LogIn, Chrome as Home, CircleAlert as AlertCircle, ShieldCheck, Delete } from 'lucide-react';
+import { Eye, EyeOff, Loader as Loader2, LogIn, Chrome as Home, CircleAlert as AlertCircle, ShieldCheck } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -16,9 +16,6 @@ const roleRedirects: Record<Role, string> = {
   admin: '/admin',
 };
 
-const PIN_LENGTH = 8;
-const ADMIN_STORAGE_KEY = 'vattams_admin_session';
-
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -32,9 +29,10 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [pendingRedirect, setPendingRedirect] = useState(false);
 
-  // Admin PIN state
-  const [pin, setPin] = useState('');
-  const [pinSubmitting, setPinSubmitting] = useState(false);
+  // Admin email/password state
+  const [adminEmail, setAdminEmail] = useState('admin@vattams.net');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [adminLoading, setAdminLoading] = useState(false);
 
   useEffect(() => {
     if (pendingRedirect && session && !authLoading) {
@@ -53,38 +51,21 @@ export default function LoginPage() {
 
   const { login: adminLogin } = useAdminAuth();
 
-  const submitPin = useCallback(
-    async (fullPin: string) => {
-      setPinSubmitting(true);
-      setError(null);
-      const { error: loginError } = await adminLogin(fullPin);
-      if (loginError) {
-        setError(loginError);
-        setPin('');
-      } else {
-        navigate('/admin', { replace: true });
-      }
-      setPinSubmitting(false);
-    },
-    [navigate, adminLogin],
-  );
-
-  useEffect(() => {
-    if (role === 'admin' && pin.length === PIN_LENGTH && !pinSubmitting) {
-      submitPin(pin);
+  const handleAdminSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError(null);
+    if (!adminEmail || !adminPassword) {
+      setError('Please enter email and password.');
+      return;
     }
-  }, [pin, pinSubmitting, role, submitPin]);
-
-  const handlePinDigit = (digit: string) => {
-    if (pin.length >= PIN_LENGTH || pinSubmitting) return;
-    setError(null);
-    setPin(pin + digit);
-  };
-
-  const handlePinDelete = () => {
-    if (pinSubmitting) return;
-    setError(null);
-    setPin(pin.slice(0, -1));
+    setAdminLoading(true);
+    const { error: loginError } = await adminLogin(adminEmail, adminPassword);
+    if (loginError) {
+      setError(loginError);
+      setAdminLoading(false);
+    } else {
+      navigate('/admin', { replace: true });
+    }
   };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -114,7 +95,6 @@ export default function LoginPage() {
   };
 
   const isAdmin = role === 'admin';
-  const pinKeys = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-slate-200 px-4 py-12">
@@ -132,7 +112,7 @@ export default function LoginPage() {
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
             <p className="text-sm text-slate-500">
-              {isAdmin ? 'Enter your 8-digit Admin PIN' : 'Sign in to your account to continue'}
+              {isAdmin ? 'Enter admin credentials' : 'Sign in to your account to continue'}
             </p>
           </CardHeader>
 
@@ -145,7 +125,7 @@ export default function LoginPage() {
                   <button
                     key={r}
                     type="button"
-                    onClick={() => { setRole(r); setError(null); setPin(''); }}
+                    onClick={() => { setRole(r); setError(null); }}
                     className={`flex items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
                       role === r
                         ? r === 'admin'
@@ -155,69 +135,72 @@ export default function LoginPage() {
                     }`}
                   >
                     {r === 'admin' && <ShieldCheck className="h-3.5 w-3.5" />}
-                    {r === 'admin' ? 'Admin PIN' : r}
+                    {r === 'admin' ? 'Admin' : r}
                   </button>
                 ))}
               </div>
             </div>
 
             {isAdmin ? (
-              /* Admin PIN Login */
-              <div className="mt-6 space-y-4">
-                {/* PIN dots */}
-                <div className="flex justify-center gap-2">
-                  {Array.from({ length: PIN_LENGTH }).map((_, i) => (
-                    <div
-                      key={i}
-                      className={`h-4 w-4 rounded-full transition-all duration-200 ${
-                        i < pin.length ? 'bg-blue-600 scale-110' : 'bg-slate-300'
-                      }`}
+              /* Admin Email/Password Login */
+              <form onSubmit={handleAdminSubmit} className="mt-6 space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="admin-email">Admin Email</Label>
+                  <Input
+                    id="admin-email"
+                    type="email"
+                    placeholder="admin@vattams.net"
+                    value={adminEmail}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setAdminEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="admin-password">Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="admin-password"
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="Enter password"
+                      value={adminPassword}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setAdminPassword(e.target.value)}
+                      required
+                      autoFocus
+                      className="pr-10"
                     />
-                  ))}
-                </div>
-
-                {/* Error / Loading */}
-                <div className="h-6 text-center">
-                  {error && <p className="text-sm font-medium text-red-600 animate-pulse">{error}</p>}
-                  {pinSubmitting && (
-                    <div className="flex items-center justify-center gap-2 text-sm text-slate-500">
-                      <Loader2 className="h-4 w-4 animate-spin" /> Verifying PIN...
-                    </div>
-                  )}
-                </div>
-
-                {/* PIN Keypad */}
-                <div className="grid grid-cols-3 gap-3">
-                  {pinKeys.map((k) => (
                     <button
-                      key={k}
                       type="button"
-                      onClick={() => handlePinDigit(k)}
-                      disabled={pinSubmitting}
-                      className="flex h-14 items-center justify-center rounded-xl border border-slate-200 bg-white text-xl font-semibold text-slate-800 transition-all duration-150 hover:bg-slate-50 active:scale-95 disabled:opacity-40"
+                      onClick={() => setShowPassword((s) => !s)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                     >
-                      {k}
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
-                  ))}
-                  <div />
-                  <button
-                    type="button"
-                    onClick={() => handlePinDigit('0')}
-                    disabled={pinSubmitting}
-                    className="flex h-14 items-center justify-center rounded-xl border border-slate-200 bg-white text-xl font-semibold text-slate-800 transition-all duration-150 hover:bg-slate-50 active:scale-95 disabled:opacity-40"
-                  >
-                    0
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handlePinDelete}
-                    disabled={pinSubmitting || pin.length === 0}
-                    className="flex h-14 items-center justify-center rounded-xl text-slate-500 transition-all duration-150 hover:bg-slate-100 active:scale-95 disabled:opacity-20"
-                  >
-                    <Delete className="h-5 w-5" />
-                  </button>
+                  </div>
                 </div>
-              </div>
+                {error && (
+                  <div className="flex items-start gap-2 rounded-md bg-red-50 p-3 text-sm text-red-700">
+                    <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                    <span>{error}</span>
+                  </div>
+                )}
+                <Button
+                  type="submit"
+                  disabled={adminLoading}
+                  className="w-full bg-blue-600 hover:bg-blue-700"
+                >
+                  {adminLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Logging in...
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="mr-2 h-4 w-4" />
+                      Login to Dashboard
+                    </>
+                  )}
+                </Button>
+              </form>
             ) : (
               /* Customer / Technician Login */
               <form onSubmit={handleSubmit} className="mt-4 space-y-4">
