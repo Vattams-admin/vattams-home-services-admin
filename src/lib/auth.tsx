@@ -41,7 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!error) return { error: null }
       const msg = error.message || ''
       if (msg.includes('Email not confirmed')) {
-        return { error: 'Email not confirmed. Please check your inbox or contact support at 8189800757.' }
+        return { error: 'Email not confirmed. Please contact support at 8189800757.' }
       }
       if (msg.includes('Invalid login credentials')) {
         return { error: 'Invalid email or password. Please try again.' }
@@ -54,19 +54,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function signUp(email: string, password: string, mobile: string, name: string, role: UserRole) {
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-      const res = await fetch(`${supabaseUrl}/functions/v1/customer-signup`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${anonKey}`,
-          apikey: anonKey,
-        },
-        body: JSON.stringify({ email, password, mobile, name, role }),
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { name, mobile, role } },
       })
-      const data = await res.json()
-      if (!res.ok) return { error: data.error || 'Failed to create account' }
+      if (error) {
+        const msg = error.message || 'Failed to create account'
+        if (msg.includes('already') || msg.includes('exists')) {
+          return { error: 'An account with this email already exists. Please log in.' }
+        }
+        return { error: msg }
+      }
+      if (data.user) {
+        const { error: profileError } = await supabase.from('profiles').upsert({
+          id: data.user.id,
+          email,
+          name,
+          mobile,
+          role,
+          verification_status: role === 'technician' ? 'pending_registration' : null,
+          status: role === 'technician' ? 'inactive' : 'active',
+        }, { onConflict: 'id' })
+        if (profileError) {
+          console.error('Profile creation error:', profileError.message)
+        }
+      }
       return { error: null }
     } catch {
       return { error: 'Unable to connect. Please check your internet connection and try again.' }

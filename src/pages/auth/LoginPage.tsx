@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/lib/auth';
+import { useAdminAuth } from '@/lib/admin-auth';
 
 type Role = 'customer' | 'technician' | 'admin';
 
@@ -50,39 +51,22 @@ export default function LoginPage() {
     }
   }, [session, authLoading, navigate, role, pendingRedirect, location]);
 
+  const { login: adminLogin } = useAdminAuth();
+
   const submitPin = useCallback(
     async (fullPin: string) => {
       setPinSubmitting(true);
       setError(null);
-      try {
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-        const res = await fetch(`${supabaseUrl}/functions/v1/admin-pin-login`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${anonKey}`,
-            apikey: anonKey,
-          },
-          body: JSON.stringify({ pin: fullPin }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          setError(data.error || 'Invalid PIN');
-          setPin('');
-          return;
-        }
-        const adminSession = { token: data.token, expiresAt: data.expiresAt };
-        localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(adminSession));
-        navigate('/admin', { replace: true });
-      } catch {
-        setError('Unable to connect. Please check your internet connection and try again.');
+      const { error: loginError } = await adminLogin(fullPin);
+      if (loginError) {
+        setError(loginError);
         setPin('');
-      } finally {
-        setPinSubmitting(false);
+      } else {
+        navigate('/admin', { replace: true });
       }
+      setPinSubmitting(false);
     },
-    [navigate],
+    [navigate, adminLogin],
   );
 
   useEffect(() => {

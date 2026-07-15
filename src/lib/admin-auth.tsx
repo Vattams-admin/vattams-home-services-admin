@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { supabase } from '@/lib/supabase'
 
 const STORAGE_KEY = 'vattams_admin_session'
 const TOKEN_EXPIRY_BUFFER = 60
@@ -37,25 +38,26 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
 
   async function login(pin: string) {
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-      const res = await fetch(`${supabaseUrl}/functions/v1/admin-pin-login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${anonKey}`,
-          apikey: anonKey,
-        },
-        body: JSON.stringify({ pin }),
+      const { data, error } = await supabase.rpc('verify_admin_pin_and_login', {
+        input_pin: pin,
       })
-      const data = await res.json()
-      if (!res.ok) return { error: data.error || 'Invalid PIN' }
-      const newSession = { token: data.token, expiresAt: data.expiresAt }
+      if (error) {
+        return { error: error.message || 'Invalid PIN' }
+      }
+      const result = data as { token?: string; expiresAt?: number; error?: string }
+      if (result.error) {
+        return { error: result.error }
+      }
+      if (!result.token || !result.expiresAt) {
+        return { error: 'Invalid PIN' }
+      }
+      const newSession = { token: result.token, expiresAt: result.expiresAt }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newSession))
       setSession(newSession)
       return { error: null }
-    } catch {
-      return { error: 'Unable to connect. Please check your internet connection and try again.' }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unable to connect. Please try again.'
+      return { error: message }
     }
   }
 
