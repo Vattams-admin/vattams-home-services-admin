@@ -543,19 +543,19 @@ export const adminApi: Record<string, (...args: any[]) => Promise<any>> = {
   async getGoogleBusinessProfile() {
     const { data, error } = await supabase.from('google_business_profiles').select('*').maybeSingle()
     if (error) throw new Error(error.message)
-    return { data }
+    return data
   },
 
   async createGoogleBusinessProfile(profile: Record<string, unknown>) {
     const { data, error } = await supabase.from('google_business_profiles').insert(profile).select().single()
     if (error) throw new Error(error.message)
-    return { data }
+    return data
   },
 
   async updateGoogleBusinessProfile(id: string, profile: Record<string, unknown>) {
     const { data, error } = await supabase.from('google_business_profiles').update(profile).eq('id', id).select().single()
     if (error) throw new Error(error.message)
-    return { data }
+    return data
   },
 
   // ── Analytics ──
