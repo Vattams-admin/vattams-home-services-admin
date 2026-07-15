@@ -6,16 +6,14 @@ import { Badge } from '@/components/ui/badge'
 import { Input, Select, Textarea } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Modal } from '@/components/ui/modal'
-import { useAuth } from '@/lib/auth'
-import { supabase, type Notification, type Profile } from '@/lib/supabase'
+import { type Notification, type Profile } from '@/lib/supabase'
 import { cn, formatDate, formatDateTime } from '@/lib/utils'
-import { createNotification, createAuditLog } from '@/lib/notifications'
+import { adminApi } from '@/lib/admin-api'
 import { useToast } from '@/hooks/use-toast'
 
 type RecipientType = 'all' | 'customers' | 'technicians' | 'specific'
 
 export default function AdminNotificationsPage() {
-  const { profile } = useAuth()
   const toast = useToast()
 
   const [notifications, setNotifications] = useState<Notification[]>([])
@@ -42,13 +40,7 @@ export default function AdminNotificationsPage() {
     setLoading(true)
     try {
       // Fetch admin's own sent notifications (we track via audit logs)
-      const { data, error } = await supabase
-        .from('notifications')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(100)
-
-      if (error) throw error
+      const { data } = await adminApi.getNotifications()
 
       let result = (data as Notification[]) || []
 
@@ -75,10 +67,7 @@ export default function AdminNotificationsPage() {
 
   async function loadUsers() {
     try {
-      const { data } = await supabase
-        .from('profiles')
-        .select('id, name, mobile, role')
-        .order('name', { ascending: true })
+      const { data } = await adminApi.getProfilesMinimal()
       setUsers((data as Profile[]) || [])
     } catch {
       // ignore
@@ -116,27 +105,11 @@ export default function AdminNotificationsPage() {
     try {
       let userIds: string[] = []
 
-      if (recipientType === 'all') {
-        const { data } = await supabase
-          .from('profiles')
-          .select('id')
-          .in('role', ['customer', 'technician'])
-        userIds = (data?.map((u) => u.id) as string[]) || []
-      } else if (recipientType === 'customers') {
-        const { data } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('role', 'customer')
-        userIds = (data?.map((u) => u.id) as string[]) || []
-      } else if (recipientType === 'technicians') {
-        const { data } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('role', 'technician')
-          .eq('verification_status', 'approved')
-        userIds = (data?.map((u) => u.id) as string[]) || []
-      } else if (recipientType === 'specific') {
+      if (recipientType === 'specific') {
         userIds = [specificUserId]
+      } else {
+        const { data } = await adminApi.getNotificationRecipients(recipientType)
+        userIds = (data?.map((u: any) => u.id) as string[]) || []
       }
 
       if (userIds.length === 0) {
@@ -145,23 +118,31 @@ export default function AdminNotificationsPage() {
         return
       }
 
-      // Insert notifications in batches
-      const batchSize = 100
-      for (let i = 0; i < userIds.length; i += batchSize) {
-        const batch = userIds.slice(i, i + batchSize)
-        const { error } = await supabase.from('notifications').insert(
-          batch.map((userId) => ({
-            user_id: userId,
-            title: notifTitle.trim(),
-            message: notifMessage.trim(),
-            type: notifType,
-          })),
-        )
-        if (error) throw error
+      if (recipientType === 'specific') {
+        await adminApi.createNotification({
+          user_id: userIds[0],
+          title: notifTitle.trim(),
+          message: notifMessage.trim(),
+          type: notifType,
+        })
+      } else {
+        // Insert notifications in batches
+        const batchSize = 100
+        for (let i = 0; i < userIds.length; i += batchSize) {
+          const batch = userIds.slice(i, i + batchSize)
+          await adminApi.sendNotifications(
+            batch.map((userId) => ({
+              user_id: userId,
+              title: notifTitle.trim(),
+              message: notifMessage.trim(),
+              type: notifType,
+            })),
+          )
+        }
       }
 
-      await createAuditLog(
-        profile?.id || '',
+      await adminApi.createAuditLog(
+        'Admin',
         'send_notification',
         'notification',
         null,
@@ -190,14 +171,9 @@ export default function AdminNotificationsPage() {
 
     setSending(true)
     try {
-      const { data, error: fetchError } = await supabase
-        .from('profiles')
-        .select('id')
-        .in('role', ['customer', 'technician', 'admin', 'super_admin'])
+      const { data } = await adminApi.getNotificationRecipients('broadcast')
 
-      if (fetchError) throw fetchError
-
-      const userIds = (data?.map((u) => u.id) as string[]) || []
+      const userIds = (data?.map((u: any) => u.id) as string[]) || []
 
       if (userIds.length === 0) {
         toast.warning('No users found')
@@ -208,7 +184,7 @@ export default function AdminNotificationsPage() {
       const batchSize = 100
       for (let i = 0; i < userIds.length; i += batchSize) {
         const batch = userIds.slice(i, i + batchSize)
-        const { error } = await supabase.from('notifications').insert(
+        await adminApi.sendNotifications(
           batch.map((userId) => ({
             user_id: userId,
             title: broadcastTitle.trim(),
@@ -216,11 +192,10 @@ export default function AdminNotificationsPage() {
             type: 'broadcast',
           })),
         )
-        if (error) throw error
       }
 
-      await createAuditLog(
-        profile?.id || '',
+      await adminApi.createAuditLog(
+        'Admin',
         'broadcast_notification',
         'notification',
         null,

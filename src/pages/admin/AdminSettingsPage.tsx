@@ -4,9 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input, Textarea } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { useAuth } from '@/lib/auth'
-import { supabase, type Settings as SettingsType } from '@/lib/supabase'
-import { createAuditLog } from '@/lib/notifications'
+import { type Settings as SettingsType } from '@/lib/supabase'
+import { adminApi } from '@/lib/admin-api'
 import { useToast } from '@/hooks/use-toast'
 
 type FormData = {
@@ -72,7 +71,6 @@ const emptyForm: FormData = {
 }
 
 export default function AdminSettingsPage() {
-  const { profile } = useAuth()
   const toast = useToast()
 
   const [form, setForm] = useState<FormData>(emptyForm)
@@ -87,10 +85,7 @@ export default function AdminSettingsPage() {
   const loadSettings = useCallback(async () => {
     setLoading(true)
     try {
-      const { data, error } = await supabase
-        .from('settings')
-        .select('*')
-        .maybeSingle()
+      const { data, error } = await adminApi.getSettings()
 
       if (error) throw error
 
@@ -186,25 +181,18 @@ export default function AdminSettingsPage() {
       }
 
       if (settingsId) {
-        const { error } = await supabase
-          .from('settings')
-          .update(updateData)
-          .eq('id', settingsId)
+        const { error } = await adminApi.updateSettings({ id: settingsId, ...updateData })
 
         if (error) throw error
       } else {
-        const { data, error } = await supabase
-          .from('settings')
-          .insert(updateData)
-          .select('id')
-          .single()
+        const { data, error } = await adminApi.updateSettings(updateData)
 
         if (error) throw error
-        if (data) setSettingsId(data.id)
+        if (data?.id) setSettingsId(data.id)
       }
 
-      await createAuditLog(
-        profile?.id || '',
+      await adminApi.createAuditLog(
+        'Admin',
         'update_settings',
         'settings',
         settingsId,

@@ -6,10 +6,9 @@ import { Badge } from '@/components/ui/badge'
 import { Input, Select } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Modal } from '@/components/ui/modal'
-import { useAuth } from '@/lib/auth'
-import { supabase, type CustomerReview } from '@/lib/supabase'
+import { type CustomerReview } from '@/lib/supabase'
 import { formatDate } from '@/lib/utils'
-import { createAuditLog } from '@/lib/notifications'
+import { adminApi } from '@/lib/admin-api'
 import { useToast } from '@/hooks/use-toast'
 
 const SOURCE_COLORS: Record<string, string> = {
@@ -21,7 +20,6 @@ const SOURCE_COLORS: Record<string, string> = {
 }
 
 export default function AdminReviewsPage() {
-  const { profile } = useAuth()
   const toast = useToast()
 
   const [reviews, setReviews] = useState<CustomerReview[]>([])
@@ -43,25 +41,25 @@ export default function AdminReviewsPage() {
   const loadReviews = useCallback(async () => {
     setLoading(true)
     try {
-      let query = supabase
-        .from('customer_reviews')
-        .select('*')
-        .order('created_at', { ascending: false })
+      const filters: {
+        is_approved?: boolean
+        is_featured?: boolean
+        rating?: number
+      } = {}
 
       if (statusFilter === 'approved') {
-        query = query.eq('is_approved', true)
+        filters.is_approved = true
       } else if (statusFilter === 'pending') {
-        query = query.eq('is_approved', false)
+        filters.is_approved = false
       } else if (statusFilter === 'featured') {
-        query = query.eq('is_featured', true)
+        filters.is_featured = true
       }
 
       if (ratingFilter !== 'all') {
-        query = query.eq('rating', parseInt(ratingFilter))
+        filters.rating = parseInt(ratingFilter)
       }
 
-      const { data, error } = await query
-      if (error) throw error
+      const { data } = await adminApi.getReviews(filters)
 
       let result = (data as CustomerReview[]) || []
 
@@ -78,11 +76,9 @@ export default function AdminReviewsPage() {
       setReviews(result)
 
       // Calculate stats from all reviews
-      const { data: allData } = await supabase
-        .from('customer_reviews')
-        .select('rating, is_approved, is_featured')
+      const { data: statsData } = await adminApi.getReviewStats()
 
-      const allReviews = (allData as CustomerReview[]) || []
+      const allReviews = (statsData as CustomerReview[]) || []
       const totalRating = allReviews.reduce(
         (sum, r) => sum + (r.rating || 0),
         0,
@@ -110,14 +106,10 @@ export default function AdminReviewsPage() {
 
   async function approveReview(review: CustomerReview) {
     try {
-      const { error } = await supabase
-        .from('customer_reviews')
-        .update({ is_approved: true })
-        .eq('id', review.id)
-      if (error) throw error
+      await adminApi.approveReview(review.id)
 
-      await createAuditLog(
-        profile?.id || '',
+      await adminApi.createAuditLog(
+        'Admin',
         'approve_review',
         'customer_review',
         review.id,
@@ -132,14 +124,10 @@ export default function AdminReviewsPage() {
 
   async function rejectReview(review: CustomerReview) {
     try {
-      const { error } = await supabase
-        .from('customer_reviews')
-        .update({ is_approved: false })
-        .eq('id', review.id)
-      if (error) throw error
+      await adminApi.rejectReview(review.id)
 
-      await createAuditLog(
-        profile?.id || '',
+      await adminApi.createAuditLog(
+        'Admin',
         'reject_review',
         'customer_review',
         review.id,
@@ -154,14 +142,10 @@ export default function AdminReviewsPage() {
 
   async function toggleFeature(review: CustomerReview) {
     try {
-      const { error } = await supabase
-        .from('customer_reviews')
-        .update({ is_featured: !review.is_featured })
-        .eq('id', review.id)
-      if (error) throw error
+      await adminApi.toggleFeatureReview(review.id, !review.is_featured)
 
-      await createAuditLog(
-        profile?.id || '',
+      await adminApi.createAuditLog(
+        'Admin',
         'toggle_feature_review',
         'customer_review',
         review.id,

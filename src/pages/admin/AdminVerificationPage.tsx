@@ -6,9 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input, Select, Textarea } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Modal } from '@/components/ui/modal'
-import { useAuth } from '@/lib/auth'
 import {
-  supabase,
   type Profile,
   type TechnicianDocument,
   type TechnicianWallet,
@@ -22,7 +20,7 @@ import {
   VERIFICATION_STATUS_LABELS,
 } from '@/lib/utils'
 import { VERIFICATION_FEE } from '@/lib/constants'
-import { createNotification, createAuditLog } from '@/lib/notifications'
+import { adminApi } from '@/lib/admin-api'
 import { useToast } from '@/hooks/use-toast'
 
 const STATUS_FILTERS = [
@@ -36,7 +34,6 @@ const STATUS_FILTERS = [
 ]
 
 export default function AdminVerificationPage() {
-  const { profile } = useAuth()
   const toast = useToast()
 
   const [technicians, setTechnicians] = useState<Profile[]>([])
@@ -58,25 +55,17 @@ export default function AdminVerificationPage() {
   const loadTechnicians = useCallback(async () => {
     setLoading(true)
     try {
-      let query = supabase
-        .from('profiles')
-        .select('*')
-        .eq('role', 'technician')
-        .order('created_at', { ascending: false })
-
-      if (statusFilter !== 'all') {
-        query = query.eq('verification_status', statusFilter)
-      }
-
-      const { data, error } = await query
+      const { data, error } = await adminApi.getPendingVerifications(
+        statusFilter !== 'all' ? { status: statusFilter } : {},
+      )
       if (error) throw error
 
-      let result = (data as Profile[]) || []
+      let result = data || []
 
       if (search.trim()) {
         const q = search.toLowerCase()
         result = result.filter(
-          (t) =>
+          (t: any) =>
             t.name?.toLowerCase().includes(q) ||
             t.mobile?.includes(q) ||
             t.email?.toLowerCase().includes(q) ||
@@ -101,26 +90,18 @@ export default function AdminVerificationPage() {
     setModalLoading(true)
     try {
       const [docsRes, walletRes, paymentsRes] = await Promise.all([
-        supabase
-          .from('technician_documents')
-          .select('*')
-          .eq('technician_id', tech.id)
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('technician_wallets')
-          .select('*')
-          .eq('technician_id', tech.id)
-          .maybeSingle(),
-        supabase
-          .from('verification_payments')
-          .select('*')
-          .eq('technician_id', tech.id)
-          .order('created_at', { ascending: false }),
+        adminApi.getTechnicianDocuments(tech.id),
+        adminApi.getTechnicianWallet(tech.id),
+        adminApi.getTechnicianVerificationPayments(tech.id),
       ])
 
-      setDocuments((docsRes.data as TechnicianDocument[]) || [])
-      setWallet((walletRes.data as TechnicianWallet) || null)
-      setPayments((paymentsRes.data as VerificationPayment[]) || [])
+      if (docsRes.error) throw docsRes.error
+      if (walletRes.error) throw walletRes.error
+      if (paymentsRes.error) throw paymentsRes.error
+
+      setDocuments(docsRes.data || [])
+      setWallet(walletRes.data || null)
+      setPayments(paymentsRes.data || [])
     } catch {
       toast.error('Failed to load technician details')
     } finally {
@@ -131,25 +112,17 @@ export default function AdminVerificationPage() {
   async function approveTechnician(tech: Profile) {
     setActionLoading(true)
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          verification_status: 'approved',
-          status: 'active',
-          rejection_reason: null,
-        })
-        .eq('id', tech.id)
-
+      const { error } = await adminApi.approveTechnician(tech.id)
       if (error) throw error
 
-      await createNotification(
-        tech.id,
-        'Verification Approved',
-        'Congratulations! Your account has been approved. You can now start accepting jobs.',
-        'verification',
-      )
-      await createAuditLog(
-        profile?.id || '',
+      await adminApi.createNotification({
+        user_id: tech.id,
+        title: 'Verification Approved',
+        message: 'Congratulations! Your account has been approved. You can now start accepting jobs.',
+        type: 'verification',
+      })
+      await adminApi.createAuditLog(
+        'Admin',
         'approve_technician',
         'profile',
         tech.id,
@@ -180,25 +153,20 @@ export default function AdminVerificationPage() {
 
     setActionLoading(true)
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          verification_status: 'rejected',
-          status: 'inactive',
-          rejection_reason: rejectReason.trim(),
-        })
-        .eq('id', rejectTech.id)
-
+      const { error } = await adminApi.rejectTechnician(
+        rejectTech.id,
+        rejectReason.trim(),
+      )
       if (error) throw error
 
-      await createNotification(
-        rejectTech.id,
-        'Verification Rejected',
-        `Your application was rejected. Reason: ${rejectReason.trim()}`,
-        'verification',
-      )
-      await createAuditLog(
-        profile?.id || '',
+      await adminApi.createNotification({
+        user_id: rejectTech.id,
+        title: 'Verification Rejected',
+        message: `Your application was rejected. Reason: ${rejectReason.trim()}`,
+        type: 'verification',
+      })
+      await adminApi.createAuditLog(
+        'Admin',
         'reject_technician',
         'profile',
         rejectTech.id,
@@ -221,15 +189,11 @@ export default function AdminVerificationPage() {
   async function moveToReview(tech: Profile) {
     setActionLoading(true)
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ verification_status: 'under_review' })
-        .eq('id', tech.id)
-
+      const { error } = await adminApi.moveToReview(tech.id)
       if (error) throw error
 
-      await createAuditLog(
-        profile?.id || '',
+      await adminApi.createAuditLog(
+        'Admin',
         'move_to_review',
         'profile',
         tech.id,
@@ -254,25 +218,17 @@ export default function AdminVerificationPage() {
   async function suspendTechnician(tech: Profile) {
     setActionLoading(true)
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          verification_status: 'suspended',
-          status: 'inactive',
-          is_available: false,
-        })
-        .eq('id', tech.id)
-
+      const { error } = await adminApi.suspendTechnician(tech.id)
       if (error) throw error
 
-      await createNotification(
-        tech.id,
-        'Account Suspended',
-        'Your account has been suspended. Please contact support for assistance.',
-        'verification',
-      )
-      await createAuditLog(
-        profile?.id || '',
+      await adminApi.createNotification({
+        user_id: tech.id,
+        title: 'Account Suspended',
+        message: 'Your account has been suspended. Please contact support for assistance.',
+        type: 'verification',
+      })
+      await adminApi.createAuditLog(
+        'Admin',
         'suspend_technician',
         'profile',
         tech.id,

@@ -6,14 +6,12 @@ import { Badge } from '@/components/ui/badge'
 import { Input, Textarea, Select } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Modal } from '@/components/ui/modal'
-import { useAuth } from '@/lib/auth'
 import {
-  supabase,
   type EmailCampaign,
   type EmailTemplate,
 } from '@/lib/supabase'
 import { formatDate } from '@/lib/utils'
-import { createAuditLog } from '@/lib/notifications'
+import { adminApi } from '@/lib/admin-api'
 import { useToast } from '@/hooks/use-toast'
 
 type CampaignForm = {
@@ -57,7 +55,6 @@ const CAMPAIGN_STATUS_COLORS: Record<string, string> = {
 }
 
 export default function AdminEmailMarketingPage() {
-  const { profile } = useAuth()
   const toast = useToast()
 
   const [activeTab, setActiveTab] = useState<'campaigns' | 'templates'>(
@@ -91,21 +88,12 @@ export default function AdminEmailMarketingPage() {
     setLoading(true)
     try {
       const [campRes, tplRes] = await Promise.all([
-        supabase
-          .from('email_campaigns')
-          .select('*')
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('email_templates')
-          .select('*')
-          .order('created_at', { ascending: false }),
+        adminApi.getEmailCampaigns(),
+        adminApi.getEmailTemplates(),
       ])
 
-      if (campRes.error) throw campRes.error
-      if (tplRes.error) throw tplRes.error
-
-      setCampaigns((campRes.data as EmailCampaign[]) || [])
-      setTemplates((tplRes.data as EmailTemplate[]) || [])
+      setCampaigns(campRes.data || [])
+      setTemplates(tplRes.data || [])
     } catch {
       toast.error('Failed to load email marketing data')
     } finally {
@@ -153,13 +141,9 @@ export default function AdminEmailMarketingPage() {
       }
 
       if (editingCampaign) {
-        const { error } = await supabase
-          .from('email_campaigns')
-          .update(payload)
-          .eq('id', editingCampaign.id)
-        if (error) throw error
-        await createAuditLog(
-          profile?.id || '',
+        await adminApi.updateEmailCampaign(editingCampaign.id, payload)
+        await adminApi.createAuditLog(
+          'Admin',
           'update_email_campaign',
           'email_campaign',
           editingCampaign.id,
@@ -167,12 +151,9 @@ export default function AdminEmailMarketingPage() {
         )
         toast.success('Campaign updated successfully')
       } else {
-        const { error } = await supabase
-          .from('email_campaigns')
-          .insert(payload)
-        if (error) throw error
-        await createAuditLog(
-          profile?.id || '',
+        await adminApi.createEmailCampaign(payload)
+        await adminApi.createAuditLog(
+          'Admin',
           'create_email_campaign',
           'email_campaign',
           null,
@@ -193,13 +174,9 @@ export default function AdminEmailMarketingPage() {
     if (!deleteCampaignId) return
     setDeletingCampaign(true)
     try {
-      const { error } = await supabase
-        .from('email_campaigns')
-        .delete()
-        .eq('id', deleteCampaignId)
-      if (error) throw error
-      await createAuditLog(
-        profile?.id || '',
+      await adminApi.deleteEmailCampaign(deleteCampaignId)
+      await adminApi.createAuditLog(
+        'Admin',
         'delete_email_campaign',
         'email_campaign',
         deleteCampaignId,
@@ -250,13 +227,9 @@ export default function AdminEmailMarketingPage() {
       }
 
       if (editingTemplate) {
-        const { error } = await supabase
-          .from('email_templates')
-          .update(payload)
-          .eq('id', editingTemplate.id)
-        if (error) throw error
-        await createAuditLog(
-          profile?.id || '',
+        await adminApi.updateEmailTemplate(editingTemplate.id, payload)
+        await adminApi.createAuditLog(
+          'Admin',
           'update_email_template',
           'email_template',
           editingTemplate.id,
@@ -264,12 +237,9 @@ export default function AdminEmailMarketingPage() {
         )
         toast.success('Template updated successfully')
       } else {
-        const { error } = await supabase
-          .from('email_templates')
-          .insert(payload)
-        if (error) throw error
-        await createAuditLog(
-          profile?.id || '',
+        await adminApi.createEmailTemplate(payload)
+        await adminApi.createAuditLog(
+          'Admin',
           'create_email_template',
           'email_template',
           null,
@@ -290,13 +260,9 @@ export default function AdminEmailMarketingPage() {
     if (!deleteTemplateId) return
     setDeletingTemplate(true)
     try {
-      const { error } = await supabase
-        .from('email_templates')
-        .delete()
-        .eq('id', deleteTemplateId)
-      if (error) throw error
-      await createAuditLog(
-        profile?.id || '',
+      await adminApi.deleteEmailTemplate(deleteTemplateId)
+      await adminApi.createAuditLog(
+        'Admin',
         'delete_email_template',
         'email_template',
         deleteTemplateId,

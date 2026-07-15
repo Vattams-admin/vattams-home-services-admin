@@ -5,11 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input, Select } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  supabase,
-  type RevenueTransaction,
-  type Invoice,
-} from '@/lib/supabase'
+import { type RevenueTransaction, type Invoice } from '@/lib/supabase'
+import { adminApi } from '@/lib/admin-api'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
 import { SERVICE_CATEGORIES } from '@/lib/constants'
 import { generateReportPDF, exportToCSV } from '@/lib/pdf'
@@ -62,29 +59,18 @@ export default function AdminRevenuePage() {
       const startDate = getPeriodStartDate(period)
       const startDateStr = startDate.toISOString()
 
-      const [transactionsRes, invoicesRes, allInvoicesRes] = await Promise.all([
-        supabase
-          .from('revenue_transactions')
-          .select('*')
-          .gte('created_at', startDateStr)
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('invoices')
-          .select('amount, status, service_name, created_at')
-          .gte('created_at', startDateStr),
-        supabase.from('invoices').select('amount, status, service_name, created_at'),
-      ])
+      const data = await adminApi.getRevenueData({ start_date: startDateStr })
 
-      const txns = (transactionsRes.data as RevenueTransaction[]) || []
+      const txns = data.transactions as RevenueTransaction[]
       const invoices =
-        (invoicesRes.data as {
+        (data.invoices as {
           amount: number
           status: string
           service_name: string
           created_at: string
         }[]) || []
       const allInvoices =
-        (allInvoicesRes.data as {
+        (data.allInvoices as {
           amount: number
           status: string
           service_name: string

@@ -3,13 +3,13 @@ import { TrendingUp, Eye, MousePointerClick, Mail, Star, Users, Megaphone, Globe
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import {
-  supabase,
   type MarketingCampaign,
   type EmailCampaign,
   type CustomerReview,
   type AnalyticsEvent,
   type HomepageBanner,
 } from '@/lib/supabase'
+import { adminApi } from '@/lib/admin-api'
 import { useToast } from '@/hooks/use-toast'
 
 type TrafficSource = {
@@ -57,47 +57,13 @@ export default function AdminMarketingDashboardPage() {
   const loadDashboard = useCallback(async () => {
     setLoading(true)
     try {
-      const [
-        campRes,
-        emailRes,
-        reviewRes,
-        analyticsRes,
-        bannerRes,
-      ] = await Promise.all([
-        supabase
-          .from('marketing_campaigns')
-          .select('*')
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('email_campaigns')
-          .select('*')
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('customer_reviews')
-          .select('*')
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('analytics_events')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(5000),
-        supabase
-          .from('homepage_banners')
-          .select('*')
-          .order('created_at', { ascending: false }),
-      ])
+      const data = await adminApi.getMarketingDashboard()
 
-      if (campRes.error) throw campRes.error
-      if (emailRes.error) throw emailRes.error
-      if (reviewRes.error) throw reviewRes.error
-      if (analyticsRes.error) throw analyticsRes.error
-      if (bannerRes.error) throw bannerRes.error
-
-      const allCampaigns = (campRes.data as MarketingCampaign[]) || []
-      const allEmails = (emailRes.data as EmailCampaign[]) || []
-      const allReviews = (reviewRes.data as CustomerReview[]) || []
-      const allEvents = (analyticsRes.data as AnalyticsEvent[]) || []
-      const allBanners = (bannerRes.data as HomepageBanner[]) || []
+      const allCampaigns = data.campaigns || []
+      const allEmails = data.emailCampaigns || []
+      const allReviews = data.reviews || []
+      const allEvents = data.events || []
+      const allBanners = data.banners || []
 
       setCampaigns(allCampaigns)
       setEmailCampaigns(allEmails)
@@ -107,22 +73,22 @@ export default function AdminMarketingDashboardPage() {
 
       // Calculate stats
       const pageViews = allEvents.filter(
-        (e) => e.event_category === 'page_view',
+        (e: any) => e.event_category === 'page_view',
       )
       const totalEmailSent = allEmails.reduce(
-        (sum, c) => sum + (c.sent_count || 0),
+        (sum: number, c: any) => sum + (c.sent_count || 0),
         0,
       )
       const totalEmailOpens = allEmails.reduce(
-        (sum, c) => sum + (c.open_count || 0),
+        (sum: number, c: any) => sum + (c.open_count || 0),
         0,
       )
       const totalEmailClicks = allEmails.reduce(
-        (sum, c) => sum + (c.click_count || 0),
+        (sum: number, c: any) => sum + (c.click_count || 0),
         0,
       )
       const totalRating = allReviews.reduce(
-        (sum, r) => sum + (r.rating || 0),
+        (sum: number, r: any) => sum + (r.rating || 0),
         0,
       )
 
@@ -130,7 +96,7 @@ export default function AdminMarketingDashboardPage() {
         totalPageViews: pageViews.length,
         totalEvents: allEvents.length,
         totalCampaigns: allCampaigns.length,
-        activeCampaigns: allCampaigns.filter((c) => c.status === 'active')
+        activeCampaigns: allCampaigns.filter((c: any) => c.status === 'active')
           .length,
         totalEmailSent,
         totalEmailOpens,
@@ -141,12 +107,12 @@ export default function AdminMarketingDashboardPage() {
             ? Math.round((totalRating / allReviews.length) * 10) / 10
             : 0,
         totalBanners: allBanners.length,
-        activeBanners: allBanners.filter((b) => b.is_active).length,
+        activeBanners: allBanners.filter((b: any) => b.is_active).length,
       })
 
       // Calculate traffic sources from analytics
       const sourceMap: Record<string, number> = {}
-      pageViews.forEach((e) => {
+      pageViews.forEach((e: any) => {
         const metaData = e.metadata as Record<string, unknown>
         const source =
           (metaData?.source as string) ||
@@ -168,7 +134,7 @@ export default function AdminMarketingDashboardPage() {
 
       // Calculate rating distribution
       const ratingMap: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
-      allReviews.forEach((r) => {
+      allReviews.forEach((r: any) => {
         if (r.rating >= 1 && r.rating <= 5) {
           ratingMap[r.rating]++
         }

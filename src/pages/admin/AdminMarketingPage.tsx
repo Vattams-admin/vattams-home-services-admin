@@ -6,15 +6,13 @@ import { Badge } from '@/components/ui/badge'
 import { Input, Textarea, Select } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Modal } from '@/components/ui/modal'
-import { useAuth } from '@/lib/auth'
 import {
-  supabase,
   type MarketingCampaign,
   type HomepageBanner,
   type PopupAnnouncement,
 } from '@/lib/supabase'
+import { adminApi } from '@/lib/admin-api'
 import { formatDate } from '@/lib/utils'
-import { createAuditLog } from '@/lib/notifications'
 import { useToast } from '@/hooks/use-toast'
 
 type CampaignForm = {
@@ -82,7 +80,6 @@ const CAMPAIGN_STATUS_COLORS: Record<string, string> = {
 }
 
 export default function AdminMarketingPage() {
-  const { profile } = useAuth()
   const toast = useToast()
 
   const [activeTab, setActiveTab] = useState<'campaigns' | 'banners' | 'popups'>(
@@ -128,27 +125,14 @@ export default function AdminMarketingPage() {
     setLoading(true)
     try {
       const [campRes, banRes, popRes] = await Promise.all([
-        supabase
-          .from('marketing_campaigns')
-          .select('*')
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('homepage_banners')
-          .select('*')
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('popup_announcements')
-          .select('*')
-          .order('created_at', { ascending: false }),
+        adminApi.getMarketingCampaigns(),
+        adminApi.getHomepageBanners(),
+        adminApi.getPopupAnnouncements(),
       ])
 
-      if (campRes.error) throw campRes.error
-      if (banRes.error) throw banRes.error
-      if (popRes.error) throw popRes.error
-
-      setCampaigns((campRes.data as MarketingCampaign[]) || [])
-      setBanners((banRes.data as HomepageBanner[]) || [])
-      setPopups((popRes.data as PopupAnnouncement[]) || [])
+      setCampaigns(campRes.data || [])
+      setBanners(banRes.data || [])
+      setPopups(popRes.data || [])
     } catch {
       toast.error('Failed to load marketing data')
     } finally {
@@ -207,13 +191,9 @@ export default function AdminMarketingPage() {
       }
 
       if (editingCampaign) {
-        const { error } = await supabase
-          .from('marketing_campaigns')
-          .update(payload)
-          .eq('id', editingCampaign.id)
-        if (error) throw error
-        await createAuditLog(
-          profile?.id || '',
+        await adminApi.updateMarketingCampaign(editingCampaign.id, payload)
+        await adminApi.createAuditLog(
+          'Admin',
           'update_campaign',
           'marketing_campaign',
           editingCampaign.id,
@@ -221,12 +201,9 @@ export default function AdminMarketingPage() {
         )
         toast.success('Campaign updated successfully')
       } else {
-        const { error } = await supabase
-          .from('marketing_campaigns')
-          .insert(payload)
-        if (error) throw error
-        await createAuditLog(
-          profile?.id || '',
+        await adminApi.createMarketingCampaign(payload)
+        await adminApi.createAuditLog(
+          'Admin',
           'create_campaign',
           'marketing_campaign',
           null,
@@ -247,13 +224,9 @@ export default function AdminMarketingPage() {
     if (!deleteCampaignId) return
     setDeletingCampaign(true)
     try {
-      const { error } = await supabase
-        .from('marketing_campaigns')
-        .delete()
-        .eq('id', deleteCampaignId)
-      if (error) throw error
-      await createAuditLog(
-        profile?.id || '',
+      await adminApi.deleteMarketingCampaign(deleteCampaignId)
+      await adminApi.createAuditLog(
+        'Admin',
         'delete_campaign',
         'marketing_campaign',
         deleteCampaignId,
@@ -304,13 +277,9 @@ export default function AdminMarketingPage() {
       }
 
       if (editingBanner) {
-        const { error } = await supabase
-          .from('homepage_banners')
-          .update(payload)
-          .eq('id', editingBanner.id)
-        if (error) throw error
-        await createAuditLog(
-          profile?.id || '',
+        await adminApi.updateHomepageBanner(editingBanner.id, payload)
+        await adminApi.createAuditLog(
+          'Admin',
           'update_banner',
           'homepage_banner',
           editingBanner.id,
@@ -318,12 +287,9 @@ export default function AdminMarketingPage() {
         )
         toast.success('Banner updated successfully')
       } else {
-        const { error } = await supabase
-          .from('homepage_banners')
-          .insert(payload)
-        if (error) throw error
-        await createAuditLog(
-          profile?.id || '',
+        await adminApi.createHomepageBanner(payload)
+        await adminApi.createAuditLog(
+          'Admin',
           'create_banner',
           'homepage_banner',
           null,
@@ -344,13 +310,9 @@ export default function AdminMarketingPage() {
     if (!deleteBannerId) return
     setDeletingBanner(true)
     try {
-      const { error } = await supabase
-        .from('homepage_banners')
-        .delete()
-        .eq('id', deleteBannerId)
-      if (error) throw error
-      await createAuditLog(
-        profile?.id || '',
+      await adminApi.deleteHomepageBanner(deleteBannerId)
+      await adminApi.createAuditLog(
+        'Admin',
         'delete_banner',
         'homepage_banner',
         deleteBannerId,
@@ -368,11 +330,7 @@ export default function AdminMarketingPage() {
 
   async function toggleBannerActive(b: HomepageBanner) {
     try {
-      const { error } = await supabase
-        .from('homepage_banners')
-        .update({ is_active: !b.is_active })
-        .eq('id', b.id)
-      if (error) throw error
+      await adminApi.toggleHomepageBanner(b.id, !b.is_active)
       toast.success(`Banner ${b.is_active ? 'deactivated' : 'activated'}`)
       await loadData()
     } catch {
@@ -427,13 +385,9 @@ export default function AdminMarketingPage() {
       }
 
       if (editingPopup) {
-        const { error } = await supabase
-          .from('popup_announcements')
-          .update(payload)
-          .eq('id', editingPopup.id)
-        if (error) throw error
-        await createAuditLog(
-          profile?.id || '',
+        await adminApi.updatePopupAnnouncement(editingPopup.id, payload)
+        await adminApi.createAuditLog(
+          'Admin',
           'update_popup',
           'popup_announcement',
           editingPopup.id,
@@ -441,12 +395,9 @@ export default function AdminMarketingPage() {
         )
         toast.success('Popup updated successfully')
       } else {
-        const { error } = await supabase
-          .from('popup_announcements')
-          .insert(payload)
-        if (error) throw error
-        await createAuditLog(
-          profile?.id || '',
+        await adminApi.createPopupAnnouncement(payload)
+        await adminApi.createAuditLog(
+          'Admin',
           'create_popup',
           'popup_announcement',
           null,
@@ -467,13 +418,9 @@ export default function AdminMarketingPage() {
     if (!deletePopupId) return
     setDeletingPopup(true)
     try {
-      const { error } = await supabase
-        .from('popup_announcements')
-        .delete()
-        .eq('id', deletePopupId)
-      if (error) throw error
-      await createAuditLog(
-        profile?.id || '',
+      await adminApi.deletePopupAnnouncement(deletePopupId)
+      await adminApi.createAuditLog(
+        'Admin',
         'delete_popup',
         'popup_announcement',
         deletePopupId,
@@ -491,11 +438,7 @@ export default function AdminMarketingPage() {
 
   async function togglePopupActive(p: PopupAnnouncement) {
     try {
-      const { error } = await supabase
-        .from('popup_announcements')
-        .update({ is_active: !p.is_active })
-        .eq('id', p.id)
-      if (error) throw error
+      await adminApi.togglePopupAnnouncement(p.id, !p.is_active)
       toast.success(`Popup ${p.is_active ? 'deactivated' : 'activated'}`)
       await loadData()
     } catch {

@@ -4,9 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input, Textarea } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { useAuth } from '@/lib/auth'
-import { supabase, type GoogleBusinessProfile } from '@/lib/supabase'
-import { createAuditLog } from '@/lib/notifications'
+import { type GoogleBusinessProfile } from '@/lib/supabase'
+import { adminApi } from '@/lib/admin-api'
 import { useToast } from '@/hooks/use-toast'
 
 type ProfileForm = {
@@ -40,7 +39,6 @@ const emptyForm: ProfileForm = {
 }
 
 export default function AdminGoogleBusinessPage() {
-  const { profile } = useAuth()
   const toast = useToast()
 
   const [profileId, setProfileId] = useState<string | null>(null)
@@ -51,17 +49,10 @@ export default function AdminGoogleBusinessPage() {
   const loadProfile = useCallback(async () => {
     setLoading(true)
     try {
-      const { data, error } = await supabase
-        .from('google_business_profiles')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-
-      if (error) throw error
+      const data = await adminApi.getGoogleBusinessProfile() as GoogleBusinessProfile | null
 
       if (data) {
-        const p = data as GoogleBusinessProfile
+        const p = data
         setProfileId(p.id)
         setForm({
           business_name: p.business_name || 'VATTAMS Home Services',
@@ -114,14 +105,10 @@ export default function AdminGoogleBusinessPage() {
       }
 
       if (profileId) {
-        const { error } = await supabase
-          .from('google_business_profiles')
-          .update(payload)
-          .eq('id', profileId)
-        if (error) throw error
+        await adminApi.updateGoogleBusinessProfile(profileId, payload)
 
-        await createAuditLog(
-          profile?.id || '',
+        await adminApi.createAuditLog(
+          'Admin',
           'update_google_business_profile',
           'google_business_profile',
           profileId,
@@ -129,19 +116,13 @@ export default function AdminGoogleBusinessPage() {
         )
         toast.success('Google Business Profile updated successfully')
       } else {
-        const { data, error } = await supabase
-          .from('google_business_profiles')
-          .insert(payload)
-          .select()
-          .single()
+        const result = await adminApi.createGoogleBusinessProfile(payload)
 
-        if (error) throw error
-
-        if (data) {
-          setProfileId((data as GoogleBusinessProfile).id)
+        if (result?.data) {
+          setProfileId((result.data as GoogleBusinessProfile).id)
         }
-        await createAuditLog(
-          profile?.id || '',
+        await adminApi.createAuditLog(
+          'Admin',
           'create_google_business_profile',
           'google_business_profile',
           null,

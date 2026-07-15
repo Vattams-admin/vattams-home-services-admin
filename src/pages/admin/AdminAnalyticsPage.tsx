@@ -4,11 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input, Select } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  supabase,
-  type AnalyticsEvent,
-  type AnalyticsSettings,
-} from '@/lib/supabase'
+import { type AnalyticsEvent, type AnalyticsSettings } from '@/lib/supabase'
+import { adminApi } from '@/lib/admin-api'
 import { formatDateTime, formatDate } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 
@@ -43,35 +40,29 @@ export default function AdminAnalyticsPage() {
   const loadAnalytics = useCallback(async () => {
     setLoading(true)
     try {
-      let query = supabase
-        .from('analytics_events')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(1000)
-
+      const filters: { start_date?: string; end_date?: string; category?: string } = {}
       if (dateFilter) {
-        query = query.gte('created_at', `${dateFilter}T00:00:00`)
-        query = query.lte('created_at', `${dateFilter}T23:59:59`)
+        filters.start_date = `${dateFilter}T00:00:00`
+        filters.end_date = `${dateFilter}T23:59:59`
       }
       if (categoryFilter !== 'all') {
-        query = query.eq('event_category', categoryFilter)
+        filters.category = categoryFilter
       }
 
-      const { data, error } = await query
-      if (error) throw error
+      const { data } = await adminApi.getAnalyticsEvents(filters)
 
-      const allEvents = (data as AnalyticsEvent[]) || []
+      const allEvents = data || []
       setEvents(allEvents)
 
       // Calculate stats
       const pageViewEvents = allEvents.filter(
-        (e) => e.event_category === 'page_view',
+        (e: any) => e.event_category === 'page_view',
       )
       const userIds = new Set(
-        allEvents.filter((e) => e.user_id).map((e) => e.user_id),
+        allEvents.filter((e: any) => e.user_id).map((e: any) => e.user_id),
       )
       const sessionIds = new Set(
-        allEvents.filter((e) => e.session_id).map((e) => e.session_id),
+        allEvents.filter((e: any) => e.session_id).map((e: any) => e.session_id),
       )
 
       setStats({
@@ -83,7 +74,7 @@ export default function AdminAnalyticsPage() {
 
       // Calculate top pages
       const pageCountMap: Record<string, number> = {}
-      pageViewEvents.forEach((e) => {
+      pageViewEvents.forEach((e: any) => {
         const url = e.page_url || 'unknown'
         pageCountMap[url] = (pageCountMap[url] || 0) + 1
       })
@@ -95,7 +86,7 @@ export default function AdminAnalyticsPage() {
 
       // Calculate category counts
       const categoryMap: Record<string, number> = {}
-      allEvents.forEach((e) => {
+      allEvents.forEach((e: any) => {
         const cat = e.event_category || 'other'
         categoryMap[cat] = (categoryMap[cat] || 0) + 1
       })
@@ -105,15 +96,10 @@ export default function AdminAnalyticsPage() {
       setCategoryCounts(sortedCategories)
 
       // Load analytics settings
-      const { data: settingsData } = await supabase
-        .from('analytics_settings')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
+      const { data: settingsData } = await adminApi.getAnalyticsSettings()
 
       if (settingsData) {
-        setSettings(settingsData as AnalyticsSettings)
+        setSettings(settingsData)
       }
     } catch {
       toast.error('Failed to load analytics data')

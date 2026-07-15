@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { supabase, type AiInsight } from '@/lib/supabase'
+import { type AiInsight } from '@/lib/supabase'
+import { adminApi } from '@/lib/admin-api'
 import { formatDateTime } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 
@@ -52,14 +53,9 @@ export default function AdminAiAssistantPage() {
   const loadInsights = useCallback(async () => {
     setLoading(true)
     try {
-      const { data, error } = await supabase
-        .from('ai_insights')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(50)
+      const { data } = await adminApi.getAiInsights()
 
-      if (error) throw error
-      setInsights((data as AiInsight[]) || [])
+      setInsights(data || [])
     } catch {
       toast.error('Failed to load AI insights')
     } finally {
@@ -124,8 +120,7 @@ export default function AdminAiAssistantPage() {
   async function clearInsights() {
     setClearing(true)
     try {
-      const { error } = await supabase.from('ai_insights').delete().neq('id', '')
-      if (error) throw error
+      await adminApi.clearAiInsights()
       toast.success('Insights cleared')
       await loadInsights()
     } catch {

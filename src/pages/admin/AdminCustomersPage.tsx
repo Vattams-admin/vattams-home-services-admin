@@ -6,16 +6,14 @@ import { Badge } from '@/components/ui/badge'
 import { Input, Textarea } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Modal } from '@/components/ui/modal'
-import { useAuth } from '@/lib/auth'
 import {
-  supabase,
   type Profile,
   type Booking,
   type Invoice,
   type CustomerNote,
 } from '@/lib/supabase'
 import { cn, formatDate, formatCurrency, BOOKING_STATUS_COLORS } from '@/lib/utils'
-import { createAuditLog } from '@/lib/notifications'
+import { adminApi } from '@/lib/admin-api'
 import { useToast } from '@/hooks/use-toast'
 
 type CustomerWithStats = Profile & {
@@ -24,7 +22,6 @@ type CustomerWithStats = Profile & {
 }
 
 export default function AdminCustomersPage() {
-  const { profile } = useAuth()
   const toast = useToast()
 
   const [customers, setCustomers] = useState<CustomerWithStats[]>([])
@@ -45,33 +42,22 @@ export default function AdminCustomersPage() {
   const loadCustomers = useCallback(async () => {
     setLoading(true)
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('role', 'customer')
-        .order('created_at', { ascending: false })
+      const { data, error } = await adminApi.getCustomers()
 
       if (error) throw error
 
       let result = (data as Profile[]) || []
 
       // Fetch booking counts and spending
-      const { data: stats } = await supabase
-        .from('bookings')
-        .select('customer_id, amount, status')
-
-      const { data: invoiceStats } = await supabase
-        .from('invoices')
-        .select('customer_id, amount, status')
-        .eq('status', 'paid')
+      const stats = await adminApi.getCustomerStats()
 
       const bookingMap = new Map<string, { count: number; spent: number }>()
-      ;(stats || []).forEach((b: { customer_id: string; amount: number }) => {
+      ;(stats.bookings || []).forEach((b: { customer_id: string; amount: number }) => {
         const cur = bookingMap.get(b.customer_id) || { count: 0, spent: 0 }
         cur.count += 1
         bookingMap.set(b.customer_id, cur)
       })
-      ;(invoiceStats || []).forEach(
+      ;(stats.invoices || []).forEach(
         (inv: { customer_id: string; amount: number }) => {
           const cur = bookingMap.get(inv.customer_id) || { count: 0, spent: 0 }
           cur.spent += Number(inv.amount)
@@ -113,21 +99,9 @@ export default function AdminCustomersPage() {
     setModalLoading(true)
     try {
       const [bookingsRes, invoicesRes, notesRes] = await Promise.all([
-        supabase
-          .from('bookings')
-          .select('*')
-          .eq('customer_id', customer.id)
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('invoices')
-          .select('*')
-          .eq('customer_id', customer.id)
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('customer_notes')
-          .select('*')
-          .eq('customer_id', customer.id)
-          .order('created_at', { ascending: false }),
+        adminApi.getCustomerBookings(customer.id),
+        adminApi.getCustomerInvoices(customer.id),
+        adminApi.getCustomerNotes(customer.id),
       ])
 
       setCustomerBookings((bookingsRes.data as Booking[]) || [])
@@ -147,15 +121,15 @@ export default function AdminCustomersPage() {
     }
     setNoteLoading(true)
     try {
-      const { error } = await supabase.from('customer_notes').insert({
+      const { error } = await adminApi.createCustomerNote({
         customer_id: selectedCustomer.id,
-        admin_id: profile?.id || '',
+        admin_id: 'Admin',
         note: noteText.trim(),
       })
       if (error) throw error
 
-      await createAuditLog(
-        profile?.id || '',
+      await adminApi.createAuditLog(
+        'Admin',
         'add_customer_note',
         'customer',
         selectedCustomer.id,
@@ -167,11 +141,7 @@ export default function AdminCustomersPage() {
       setNoteModalOpen(false)
 
       // Refresh notes
-      const { data } = await supabase
-        .from('customer_notes')
-        .select('*')
-        .eq('customer_id', selectedCustomer.id)
-        .order('created_at', { ascending: false })
+      const { data } = await adminApi.getCustomerNotes(selectedCustomer.id)
       setCustomerNotes((data as CustomerNote[]) || [])
     } catch {
       toast.error('Failed to add note')

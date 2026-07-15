@@ -7,11 +7,11 @@ import { Input, Select } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Modal } from '@/components/ui/modal'
 import {
-  supabase,
   type Invoice,
   type Booking,
   type Profile,
 } from '@/lib/supabase'
+import { adminApi } from '@/lib/admin-api'
 import { cn, formatDate, formatCurrency } from '@/lib/utils'
 import { generateInvoicePDF } from '@/lib/pdf'
 import { useToast } from '@/hooks/use-toast'
@@ -55,18 +55,7 @@ export default function AdminPaymentsPage() {
   const loadInvoices = useCallback(async () => {
     setLoading(true)
     try {
-      let query = supabase
-        .from('invoices')
-        .select(
-          '*, customer:profiles!invoices_customer_id_fkey(id, name, mobile), technician:profiles!invoices_technician_id_fkey(id, name), booking:bookings!invoices_booking_id_fkey(id, booking_number, service_name, address, city, scheduled_date)',
-        )
-        .order('created_at', { ascending: false })
-
-      if (statusFilter !== 'all') {
-        query = query.eq('status', statusFilter)
-      }
-
-      const { data, error } = await query
+      const { data, error } = await adminApi.getInvoices(statusFilter !== 'all' ? { status: statusFilter } : {})
       if (error) throw error
 
       let result = (data as InvoiceWithDetails[]) || []
@@ -119,11 +108,7 @@ export default function AdminPaymentsPage() {
     try {
       // Fetch full booking details if not already loaded
       if (!invoice.booking && invoice.booking_id) {
-        const { data: booking } = await supabase
-          .from('bookings')
-          .select('id, booking_number, service_name, address, city, scheduled_date')
-          .eq('id', invoice.booking_id)
-          .maybeSingle()
+        const { data: booking } = await adminApi.getBookingDetail(invoice.booking_id)
         if (booking) {
           setSelectedInvoice({ ...invoice, booking: booking as Booking })
         }
@@ -138,17 +123,7 @@ export default function AdminPaymentsPage() {
   async function updatePaymentStatus(invoiceId: string, newStatus: string) {
     setUpdating(true)
     try {
-      const updateData: Record<string, unknown> = {
-        status: newStatus,
-      }
-      if (newStatus === 'paid') {
-        updateData.paid_at = new Date().toISOString()
-      }
-
-      const { error } = await supabase
-        .from('invoices')
-        .update(updateData)
-        .eq('id', invoiceId)
+      const { error } = await adminApi.updateInvoiceStatus(invoiceId, newStatus)
 
       if (error) throw error
 
@@ -166,18 +141,11 @@ export default function AdminPaymentsPage() {
     try {
       let booking: Booking | null = null
       if (invoice.booking_id) {
-        const { data } = await supabase
-          .from('bookings')
-          .select('*')
-          .eq('id', invoice.booking_id)
-          .maybeSingle()
+        const { data } = await adminApi.getBookingDetail(invoice.booking_id)
         booking = (data as Booking) || null
       }
 
-      const { data: settings } = await supabase
-        .from('settings')
-        .select('upi_id')
-        .maybeSingle()
+      const { data: settings } = await adminApi.getSettingsUpi()
 
       await generateInvoicePDF(
         invoice,

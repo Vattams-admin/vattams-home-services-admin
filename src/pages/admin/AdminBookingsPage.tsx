@@ -6,9 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input, Select } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Modal } from '@/components/ui/modal'
-import { useAuth } from '@/lib/auth'
 import {
-  supabase,
   type Booking,
   type Profile,
   type Invoice,
@@ -19,7 +17,7 @@ import {
   formatCurrency,
   BOOKING_STATUS_COLORS,
 } from '@/lib/utils'
-import { createNotification, createAuditLog } from '@/lib/notifications'
+import { adminApi } from '@/lib/admin-api'
 import { useToast } from '@/hooks/use-toast'
 
 const STATUS_OPTIONS = [
@@ -42,7 +40,6 @@ type BookingWithDetails = Booking & {
 }
 
 export default function AdminBookingsPage() {
-  const { profile } = useAuth()
   const toast = useToast()
 
   const [bookings, setBookings] = useState<BookingWithDetails[]>([])
@@ -65,29 +62,22 @@ export default function AdminBookingsPage() {
   const loadBookings = useCallback(async () => {
     setLoading(true)
     try {
-      let query = supabase
-        .from('bookings')
-        .select(
-          '*, customer:profiles!bookings_customer_id_fkey(id, name, mobile), technician:profiles!bookings_technician_id_fkey(id, name, mobile)',
-        )
-        .order('created_at', { ascending: false })
-
+      const filters: Record<string, string> = {}
       if (statusFilter !== 'all') {
-        query = query.eq('status', statusFilter)
+        filters.status = statusFilter
       }
       if (dateFilter) {
-        query = query.eq('scheduled_date', dateFilter)
+        filters.date = dateFilter
       }
       if (techFilter !== 'all') {
         if (techFilter === 'unassigned') {
-          query = query.is('technician_id', null)
+          filters.unassigned = 'true'
         } else {
-          query = query.eq('technician_id', techFilter)
+          filters.technician_id = techFilter
         }
       }
 
-      const { data, error } = await query
-      if (error) throw error
+      const { data } = await adminApi.getBookings(filters)
 
       let result = (data as BookingWithDetails[]) || []
 
@@ -112,13 +102,14 @@ export default function AdminBookingsPage() {
 
   useEffect(() => {
     async function loadTechnicians() {
-      const { data } = await supabase
-        .from('profiles')
-        .select('id, name, mobile')
-        .eq('role', 'technician')
-        .eq('verification_status', 'approved')
-        .order('name', { ascending: true })
-      setTechnicians((data as Profile[]) || [])
+      const { data } = await adminApi.getTechnicians({ status: 'approved' })
+      const techs = ((data as Profile[]) || []).map((t) => ({
+        id: t.id,
+        name: t.name,
+        mobile: t.mobile,
+      }))
+      techs.sort((a, b) => a.name.localeCompare(b.name))
+      setTechnicians(techs as Profile[])
     }
     loadTechnicians()
   }, [])
@@ -131,11 +122,7 @@ export default function AdminBookingsPage() {
     setSelectedBooking(booking)
     setModalLoading(true)
     try {
-      const { data: invoice } = await supabase
-        .from('invoices')
-        .select('id, invoice_number, status')
-        .eq('booking_id', booking.id)
-        .maybeSingle()
+      const { data: invoice } = await adminApi.getBookingInvoice(booking.id)
 
       setSelectedBooking({ ...booking, invoice: invoice || null })
     } catch {
@@ -159,35 +146,24 @@ export default function AdminBookingsPage() {
 
     setAssignLoading(true)
     try {
-      const newStatus =
-        selectedBooking.status === 'created' ||
-        selectedBooking.status === 'confirmed'
-          ? 'assigned'
-          : selectedBooking.status
-
-      const { error } = await supabase
-        .from('bookings')
-        .update({ technician_id: assignTechId, status: newStatus })
-        .eq('id', selectedBooking.id)
-
-      if (error) throw error
+      await adminApi.assignTechnician(selectedBooking.id, assignTechId)
 
       const tech = technicians.find((t) => t.id === assignTechId)
 
-      await createNotification(
-        assignTechId,
-        'New Job Assigned',
-        `You have been assigned to booking ${selectedBooking.booking_number} for ${selectedBooking.service_name}.`,
-        'booking',
-      )
-      await createNotification(
-        selectedBooking.customer_id,
-        'Technician Assigned',
-        `A technician${tech ? ` (${tech.name})` : ''} has been assigned to your booking ${selectedBooking.booking_number}.`,
-        'booking',
-      )
-      await createAuditLog(
-        profile?.id || '',
+      await adminApi.createNotification({
+        user_id: assignTechId,
+        title: 'New Job Assigned',
+        message: `You have been assigned to booking ${selectedBooking.booking_number} for ${selectedBooking.service_name}.`,
+        type: 'booking',
+      })
+      await adminApi.createNotification({
+        user_id: selectedBooking.customer_id,
+        title: 'Technician Assigned',
+        message: `A technician${tech ? ` (${tech.name})` : ''} has been assigned to your booking ${selectedBooking.booking_number}.`,
+        type: 'booking',
+      })
+      await adminApi.createAuditLog(
+        'Admin',
         'assign_technician',
         'booking',
         selectedBooking.id,
@@ -210,21 +186,16 @@ export default function AdminBookingsPage() {
 
     setStatusUpdateLoading(true)
     try {
-      const { error } = await supabase
-        .from('bookings')
-        .update({ status: newStatus })
-        .eq('id', selectedBooking.id)
+      await adminApi.updateBookingStatus(selectedBooking.id, newStatus)
 
-      if (error) throw error
-
-      await createNotification(
-        selectedBooking.customer_id,
-        'Booking Status Updated',
-        `Your booking ${selectedBooking.booking_number} status has been updated to: ${newStatus.replace(/_/g, ' ')}.`,
-        'booking',
-      )
-      await createAuditLog(
-        profile?.id || '',
+      await adminApi.createNotification({
+        user_id: selectedBooking.customer_id,
+        title: 'Booking Status Updated',
+        message: `Your booking ${selectedBooking.booking_number} status has been updated to: ${newStatus.replace(/_/g, ' ')}.`,
+        type: 'booking',
+      })
+      await adminApi.createAuditLog(
+        'Admin',
         'update_booking_status',
         'booking',
         selectedBooking.id,

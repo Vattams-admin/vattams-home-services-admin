@@ -6,15 +6,13 @@ import { Badge } from '@/components/ui/badge'
 import { Input, Textarea, Select } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Modal } from '@/components/ui/modal'
-import { useAuth } from '@/lib/auth'
 import {
-  supabase,
   type BlogPost,
   type BlogCategory,
   type BlogTag,
 } from '@/lib/supabase'
 import { formatDate } from '@/lib/utils'
-import { createAuditLog } from '@/lib/notifications'
+import { adminApi } from '@/lib/admin-api'
 import { useToast } from '@/hooks/use-toast'
 
 type PostForm = {
@@ -53,7 +51,6 @@ type CategoryForm = {
 const emptyCategory: CategoryForm = { name: '', description: '' }
 
 export default function AdminBlogCmsPage() {
-  const { profile } = useAuth()
   const toast = useToast()
 
   const [activeTab, setActiveTab] = useState<'posts' | 'categories' | 'tags'>(
@@ -94,27 +91,14 @@ export default function AdminBlogCmsPage() {
     setLoading(true)
     try {
       const [postsRes, catRes, tagRes] = await Promise.all([
-        supabase
-          .from('blog_posts')
-          .select('*')
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('blog_categories')
-          .select('*')
-          .order('name', { ascending: true }),
-        supabase
-          .from('blog_tags')
-          .select('*')
-          .order('name', { ascending: true }),
+        adminApi.getBlogPosts(),
+        adminApi.getBlogCategories(),
+        adminApi.getBlogTags(),
       ])
 
-      if (postsRes.error) throw postsRes.error
-      if (catRes.error) throw catRes.error
-      if (tagRes.error) throw tagRes.error
-
-      setPosts((postsRes.data as BlogPost[]) || [])
-      setCategories((catRes.data as BlogCategory[]) || [])
-      setTags((tagRes.data as BlogTag[]) || [])
+      setPosts(postsRes.data || [])
+      setCategories(catRes.data || [])
+      setTags(tagRes.data || [])
     } catch {
       toast.error('Failed to load blog data')
     } finally {
@@ -182,13 +166,9 @@ export default function AdminBlogCmsPage() {
       }
 
       if (editingPost) {
-        const { error } = await supabase
-          .from('blog_posts')
-          .update(payload)
-          .eq('id', editingPost.id)
-        if (error) throw error
-        await createAuditLog(
-          profile?.id || '',
+        await adminApi.updateBlogPost(editingPost.id, payload)
+        await adminApi.createAuditLog(
+          'Admin',
           'update_blog_post',
           'blog_post',
           editingPost.id,
@@ -196,14 +176,13 @@ export default function AdminBlogCmsPage() {
         )
         toast.success('Post updated successfully')
       } else {
-        const { error } = await supabase.from('blog_posts').insert({
+        await adminApi.createBlogPost({
           ...payload,
           related_post_ids: [],
           views_count: 0,
         })
-        if (error) throw error
-        await createAuditLog(
-          profile?.id || '',
+        await adminApi.createAuditLog(
+          'Admin',
           'create_blog_post',
           'blog_post',
           null,
@@ -224,13 +203,9 @@ export default function AdminBlogCmsPage() {
     if (!deletePostId) return
     setDeletingPost(true)
     try {
-      const { error } = await supabase
-        .from('blog_posts')
-        .delete()
-        .eq('id', deletePostId)
-      if (error) throw error
-      await createAuditLog(
-        profile?.id || '',
+      await adminApi.deleteBlogPost(deletePostId)
+      await adminApi.createAuditLog(
+        'Admin',
         'delete_blog_post',
         'blog_post',
         deletePostId,
@@ -248,17 +223,7 @@ export default function AdminBlogCmsPage() {
 
   async function togglePublish(post: BlogPost) {
     try {
-      const { error } = await supabase
-        .from('blog_posts')
-        .update({
-          is_published: !post.is_published,
-          published_at: !post.is_published
-            ? new Date().toISOString()
-            : post.published_at,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', post.id)
-      if (error) throw error
+      await adminApi.toggleBlogPostPublish(post.id, !post.is_published)
       toast.success(`Post ${post.is_published ? 'unpublished' : 'published'}`)
       await loadData()
     } catch {
@@ -300,17 +265,10 @@ export default function AdminBlogCmsPage() {
       }
 
       if (editingCategory) {
-        const { error } = await supabase
-          .from('blog_categories')
-          .update(payload)
-          .eq('id', editingCategory.id)
-        if (error) throw error
+        await adminApi.updateBlogCategory(editingCategory.id, payload)
         toast.success('Category updated successfully')
       } else {
-        const { error } = await supabase
-          .from('blog_categories')
-          .insert(payload)
-        if (error) throw error
+        await adminApi.createBlogCategory(payload)
         toast.success('Category created successfully')
       }
       setCategoryModal(false)
@@ -326,11 +284,7 @@ export default function AdminBlogCmsPage() {
     if (!deleteCategoryId) return
     setDeletingCategory(true)
     try {
-      const { error } = await supabase
-        .from('blog_categories')
-        .delete()
-        .eq('id', deleteCategoryId)
-      if (error) throw error
+      await adminApi.deleteBlogCategory(deleteCategoryId)
       toast.success('Category deleted')
       setDeleteCategoryId(null)
       await loadData()
@@ -350,10 +304,7 @@ export default function AdminBlogCmsPage() {
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '')
-      const { error } = await supabase
-        .from('blog_tags')
-        .insert({ name: newTag.trim(), slug })
-      if (error) throw error
+      await adminApi.createBlogTag({ name: newTag.trim(), slug })
       toast.success('Tag added')
       setNewTag('')
       await loadData()
@@ -368,11 +319,7 @@ export default function AdminBlogCmsPage() {
     if (!deleteTagId) return
     setDeletingTag(true)
     try {
-      const { error } = await supabase
-        .from('blog_tags')
-        .delete()
-        .eq('id', deleteTagId)
-      if (error) throw error
+      await adminApi.deleteBlogTag(deleteTagId)
       toast.success('Tag deleted')
       setDeleteTagId(null)
       await loadData()

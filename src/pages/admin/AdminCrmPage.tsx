@@ -6,9 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input, Select, Textarea } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Modal } from '@/components/ui/modal'
-import { useAuth } from '@/lib/auth'
 import {
-  supabase,
   type Profile,
   type CustomerNote,
   type CustomerFollowup,
@@ -16,7 +14,7 @@ import {
   type ServiceReminder,
 } from '@/lib/supabase'
 import { cn, formatDate } from '@/lib/utils'
-import { createNotification, createAuditLog } from '@/lib/notifications'
+import { adminApi } from '@/lib/admin-api'
 import { useToast } from '@/hooks/use-toast'
 
 type Tab = 'notes' | 'followups' | 'complaints' | 'reminders'
@@ -35,7 +33,6 @@ type ReminderWithCustomer = ServiceReminder & {
 }
 
 export default function AdminCrmPage() {
-  const { profile } = useAuth()
   const toast = useToast()
 
   const [activeTab, setActiveTab] = useState<Tab>('notes')
@@ -72,39 +69,11 @@ export default function AdminCrmPage() {
     try {
       const [notesRes, followupsRes, complaintsRes, remindersRes, customersRes] =
         await Promise.all([
-          supabase
-            .from('customer_notes')
-            .select(
-              '*, customer:profiles!customer_notes_customer_id_fkey(id, name, mobile)',
-            )
-            .order('created_at', { ascending: false })
-            .limit(50),
-          supabase
-            .from('customer_followups')
-            .select(
-              '*, customer:profiles!customer_followups_customer_id_fkey(id, name, mobile)',
-            )
-            .order('created_at', { ascending: false })
-            .limit(50),
-          supabase
-            .from('customer_complaints')
-            .select(
-              '*, customer:profiles!customer_complaints_customer_id_fkey(id, name, mobile)',
-            )
-            .order('created_at', { ascending: false })
-            .limit(50),
-          supabase
-            .from('service_reminders')
-            .select(
-              '*, customer:profiles!service_reminders_customer_id_fkey(id, name, mobile)',
-            )
-            .order('created_at', { ascending: false })
-            .limit(50),
-          supabase
-            .from('profiles')
-            .select('id, name, mobile')
-            .eq('role', 'customer')
-            .order('name', { ascending: true }),
+          adminApi.getCrmNotes(),
+          adminApi.getCrmFollowups(),
+          adminApi.getCrmComplaints(),
+          adminApi.getCrmReminders(),
+          adminApi.getProfilesMinimal('customer'),
         ])
 
       setNotes((notesRes.data as NoteWithCustomer[]) || [])
@@ -130,15 +99,14 @@ export default function AdminCrmPage() {
     }
     setActionLoading(true)
     try {
-      const { error } = await supabase.from('customer_notes').insert({
+      await adminApi.createCustomerNote({
         customer_id: selectedCustomerId,
-        admin_id: profile?.id || '',
+        admin_id: 'Admin',
         note: noteText.trim(),
       })
-      if (error) throw error
 
-      await createAuditLog(
-        profile?.id || '',
+      await adminApi.createAuditLog(
+        'Admin',
         'add_customer_note',
         'customer_note',
         selectedCustomerId,
@@ -164,17 +132,16 @@ export default function AdminCrmPage() {
     }
     setActionLoading(true)
     try {
-      const { error } = await supabase.from('customer_followups').insert({
+      await adminApi.createCustomerFollowup({
         customer_id: selectedCustomerId,
-        admin_id: profile?.id || '',
+        admin_id: 'Admin',
         scheduled_date: followupDate,
         reason: followupReason.trim(),
         status: 'pending',
       })
-      if (error) throw error
 
-      await createAuditLog(
-        profile?.id || '',
+      await adminApi.createAuditLog(
+        'Admin',
         'schedule_followup',
         'customer_followup',
         selectedCustomerId,
@@ -201,21 +168,20 @@ export default function AdminCrmPage() {
     }
     setActionLoading(true)
     try {
-      const { error } = await supabase.from('service_reminders').insert({
+      await adminApi.createServiceReminder({
         customer_id: selectedCustomerId,
         service_name: reminderService,
         due_date: reminderDate,
         reminder_type: reminderType,
         status: 'pending',
       })
-      if (error) throw error
 
-      await createNotification(
-        selectedCustomerId,
-        'Service Reminder',
-        `Your ${reminderService} is due on ${formatDate(reminderDate)}. Book now to avoid inconvenience.`,
-        'reminder',
-      )
+      await adminApi.createNotification({
+        user_id: selectedCustomerId,
+        title: 'Service Reminder',
+        message: `Your ${reminderService} is due on ${formatDate(reminderDate)}. Book now to avoid inconvenience.`,
+        type: 'reminder',
+      })
 
       toast.success('Reminder created successfully')
       setReminderModalOpen(false)
@@ -237,16 +203,15 @@ export default function AdminCrmPage() {
     }
     setActionLoading(true)
     try {
-      const { error } = await supabase.from('customer_complaints').insert({
+      await adminApi.createCustomerComplaint({
         customer_id: complaintCustomerId,
         complaint_type: complaintType,
         description: complaintDesc.trim(),
         status: 'open',
       })
-      if (error) throw error
 
-      await createAuditLog(
-        profile?.id || '',
+      await adminApi.createAuditLog(
+        'Admin',
         'log_complaint',
         'customer_complaint',
         complaintCustomerId,
@@ -270,14 +235,7 @@ export default function AdminCrmPage() {
     status: string,
   ) {
     try {
-      const { error } = await supabase
-        .from('customer_followups')
-        .update({
-          status,
-          completed_at: status === 'completed' ? new Date().toISOString() : null,
-        })
-        .eq('id', id)
-      if (error) throw error
+      await adminApi.updateFollowupStatus(id, status)
       toast.success('Follow-up updated')
       await loadData()
     } catch {
@@ -290,14 +248,7 @@ export default function AdminCrmPage() {
     status: string,
   ) {
     try {
-      const { error } = await supabase
-        .from('customer_complaints')
-        .update({
-          status,
-          resolved_at: status === 'resolved' ? new Date().toISOString() : null,
-        })
-        .eq('id', id)
-      if (error) throw error
+      await adminApi.updateComplaintStatus(id, status)
       toast.success('Complaint updated')
       await loadData()
     } catch {

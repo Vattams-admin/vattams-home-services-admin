@@ -6,11 +6,10 @@ import { Badge } from '@/components/ui/badge'
 import { Input, Select } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Modal } from '@/components/ui/modal'
-import { useAuth } from '@/lib/auth'
-import { supabase, type ServiceArea } from '@/lib/supabase'
+import { type ServiceArea } from '@/lib/supabase'
 import { cn, formatDate } from '@/lib/utils'
 import { TAMIL_NADU_DISTRICTS, SERVICE_CITIES } from '@/lib/constants'
-import { createAuditLog } from '@/lib/notifications'
+import { adminApi } from '@/lib/admin-api'
 import { useToast } from '@/hooks/use-toast'
 
 type FormData = {
@@ -32,7 +31,6 @@ const emptyForm: FormData = {
 }
 
 export default function AdminServiceAreasPage() {
-  const { profile } = useAuth()
   const toast = useToast()
 
   const [areas, setAreas] = useState<ServiceArea[]>([])
@@ -51,22 +49,17 @@ export default function AdminServiceAreasPage() {
   const loadAreas = useCallback(async () => {
     setLoading(true)
     try {
-      let query = supabase
-        .from('service_areas')
-        .select('*')
-        .order('created_at', { ascending: false })
-
+      const filters: { city?: string; is_active?: boolean } = {}
       if (cityFilter !== 'all') {
-        query = query.eq('city', cityFilter)
+        filters.city = cityFilter
       }
       if (activeFilter === 'active') {
-        query = query.eq('is_active', true)
+        filters.is_active = true
       } else if (activeFilter === 'inactive') {
-        query = query.eq('is_active', false)
+        filters.is_active = false
       }
 
-      const { data, error } = await query
-      if (error) throw error
+      const { data } = await adminApi.getServiceAreas(filters)
 
       let result = (data as ServiceArea[]) || []
 
@@ -121,23 +114,18 @@ export default function AdminServiceAreasPage() {
     setSaving(true)
     try {
       if (editingArea) {
-        const { error } = await supabase
-          .from('service_areas')
-          .update({
-            city: form.city.trim(),
-            city_ta: form.city_ta.trim() || null,
-            district: form.district.trim(),
-            pincode: form.pincode.trim() || null,
-            area: form.area.trim() || null,
-            is_active: form.is_active,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', editingArea.id)
+        await adminApi.updateServiceArea(editingArea.id, {
+          city: form.city.trim(),
+          city_ta: form.city_ta.trim() || null,
+          district: form.district.trim(),
+          pincode: form.pincode.trim() || null,
+          area: form.area.trim() || null,
+          is_active: form.is_active,
+          updated_at: new Date().toISOString(),
+        })
 
-        if (error) throw error
-
-        await createAuditLog(
-          profile?.id || '',
+        await adminApi.createAuditLog(
+          'Admin',
           'update_service_area',
           'service_area',
           editingArea.id,
@@ -146,7 +134,7 @@ export default function AdminServiceAreasPage() {
 
         toast.success('Service area updated successfully')
       } else {
-        const { error } = await supabase.from('service_areas').insert({
+        await adminApi.createServiceArea({
           city: form.city.trim(),
           city_ta: form.city_ta.trim() || null,
           district: form.district.trim(),
@@ -156,10 +144,8 @@ export default function AdminServiceAreasPage() {
           state: 'Tamil Nadu',
         })
 
-        if (error) throw error
-
-        await createAuditLog(
-          profile?.id || '',
+        await adminApi.createAuditLog(
+          'Admin',
           'create_service_area',
           'service_area',
           null,
@@ -184,15 +170,10 @@ export default function AdminServiceAreasPage() {
     if (!deleteId) return
     setDeleting(true)
     try {
-      const { error } = await supabase
-        .from('service_areas')
-        .delete()
-        .eq('id', deleteId)
+      await adminApi.deleteServiceArea(deleteId)
 
-      if (error) throw error
-
-      await createAuditLog(
-        profile?.id || '',
+      await adminApi.createAuditLog(
+        'Admin',
         'delete_service_area',
         'service_area',
         deleteId,
@@ -211,18 +192,10 @@ export default function AdminServiceAreasPage() {
 
   async function toggleActive(area: ServiceArea) {
     try {
-      const { error } = await supabase
-        .from('service_areas')
-        .update({
-          is_active: !area.is_active,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', area.id)
+      await adminApi.toggleServiceArea(area.id, !area.is_active)
 
-      if (error) throw error
-
-      await createAuditLog(
-        profile?.id || '',
+      await adminApi.createAuditLog(
+        'Admin',
         'toggle_service_area',
         'service_area',
         area.id,

@@ -6,12 +6,12 @@ import { Badge } from '@/components/ui/badge'
 import { Input, Select } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
-  supabase,
   type Booking,
   type Invoice,
   type Profile,
   type Review,
 } from '@/lib/supabase'
+import { adminApi } from '@/lib/admin-api'
 import { cn, formatDate, formatCurrency, BOOKING_STATUS_COLORS } from '@/lib/utils'
 import { generateReportPDF, exportToCSV } from '@/lib/pdf'
 import { useToast } from '@/hooks/use-toast'
@@ -51,54 +51,35 @@ export default function AdminReportsPage() {
         : new Date().toISOString()
 
       if (reportType === 'bookings') {
-        const { data, error } = await supabase
-          .from('bookings')
-          .select('*')
-          .gte('created_at', start)
-          .lte('created_at', end)
-          .order('created_at', { ascending: false })
+        const { data } = await adminApi.getReportBookings({
+          start_date: start,
+          end_date: end,
+        })
 
-        if (error) throw error
-        setBookings((data as Booking[]) || [])
+        setBookings(data || [])
       } else if (reportType === 'revenue') {
-        const { data, error } = await supabase
-          .from('invoices')
-          .select('*')
-          .gte('created_at', start)
-          .lte('created_at', end)
-          .order('created_at', { ascending: false })
+        const { data } = await adminApi.getReportInvoices({
+          start_date: start,
+          end_date: end,
+        })
 
-        if (error) throw error
-        setInvoices((data as Invoice[]) || [])
+        setInvoices(data || [])
       } else if (reportType === 'technician_performance') {
-        const [techsRes, bookingsRes, reviewsRes, walletsRes] =
-          await Promise.all([
-            supabase
-              .from('profiles')
-              .select('*')
-              .eq('role', 'technician')
-              .order('name', { ascending: true }),
-            supabase
-              .from('bookings')
-              .select('technician_id, status, amount')
-              .gte('created_at', start)
-              .lte('created_at', end),
-            supabase.from('reviews').select('technician_id, rating'),
-            supabase
-              .from('technician_wallets')
-              .select('technician_id, total_earnings'),
-          ])
+        const data = await adminApi.getReportTechnicianPerformance({
+          start_date: start,
+          end_date: end,
+        })
 
-        const techs = (techsRes.data as Profile[]) || []
+        const techs = (data.technicians as Profile[]) || []
         const allBookings =
-          (bookingsRes.data as {
+          (data.bookings as {
             technician_id: string
             status: string
             amount: number
           }[]) || []
-        const reviews = (reviewsRes.data as Review[]) || []
+        const reviews = (data.reviews as Review[]) || []
         const wallets =
-          (walletsRes.data as {
+          (data.wallets as {
             technician_id: string
             total_earnings: number
           }[]) || []

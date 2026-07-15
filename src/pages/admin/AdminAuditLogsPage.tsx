@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input, Select } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { supabase, type AuditLog, type Profile } from '@/lib/supabase'
+import { type AuditLog, type Profile } from '@/lib/supabase'
+import { adminApi } from '@/lib/admin-api'
 import { formatDateTime } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 
@@ -34,25 +35,19 @@ export default function AdminAuditLogsPage() {
   const loadLogs = useCallback(async () => {
     setLoading(true)
     try {
-      let query = supabase
-        .from('audit_logs')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(500)
-
+      const filters: Record<string, string> = {}
       if (actionFilter !== 'all') {
-        query = query.ilike('action', `${actionFilter}%`)
+        filters.action_filter = `${actionFilter}%`
       }
       if (userFilter !== 'all') {
-        query = query.eq('user_id', userFilter)
+        filters.user_filter = userFilter
       }
       if (dateFilter) {
-        query = query.gte('created_at', `${dateFilter}T00:00:00`)
-        query = query.lte('created_at', `${dateFilter}T23:59:59`)
+        filters.start_date = `${dateFilter}T00:00:00`
+        filters.end_date = `${dateFilter}T23:59:59`
       }
 
-      const { data, error } = await query
-      if (error) throw error
+      const { data } = await adminApi.getAuditLogs(filters)
 
       let result = (data as AuditLog[]) || []
 
@@ -78,10 +73,7 @@ export default function AdminAuditLogsPage() {
   useEffect(() => {
     async function loadUsers() {
       try {
-        const { data } = await supabase
-          .from('profiles')
-          .select('*')
-          .order('name', { ascending: true })
+        const { data } = await adminApi.getProfiles()
         if (data) setUsers(data as Profile[])
       } catch {}
     }

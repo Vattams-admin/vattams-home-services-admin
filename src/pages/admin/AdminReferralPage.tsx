@@ -6,10 +6,9 @@ import { Badge } from '@/components/ui/badge'
 import { Input, Select } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Modal } from '@/components/ui/modal'
-import { useAuth } from '@/lib/auth'
-import { supabase, type Referral, type Profile } from '@/lib/supabase'
+import { type Referral, type Profile } from '@/lib/supabase'
+import { adminApi } from '@/lib/admin-api'
 import { formatDate, formatCurrency } from '@/lib/utils'
-import { createAuditLog } from '@/lib/notifications'
 import { useToast } from '@/hooks/use-toast'
 
 const REWARD_STATUS_COLORS: Record<string, string> = {
@@ -20,7 +19,6 @@ const REWARD_STATUS_COLORS: Record<string, string> = {
 }
 
 export default function AdminReferralPage() {
-  const { profile } = useAuth()
   const toast = useToast()
 
   const [referrals, setReferrals] = useState<Referral[]>([])
@@ -43,17 +41,7 @@ export default function AdminReferralPage() {
   const loadReferrals = useCallback(async () => {
     setLoading(true)
     try {
-      let query = supabase
-        .from('referrals')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (statusFilter !== 'all') {
-        query = query.eq('reward_status', statusFilter)
-      }
-
-      const { data, error } = await query
-      if (error) throw error
+      const { data } = await adminApi.getReferrals(statusFilter !== 'all' ? { status: statusFilter } : {})
 
       let result = (data as Referral[]) || []
 
@@ -71,9 +59,7 @@ export default function AdminReferralPage() {
       setReferrals(result)
 
       // Calculate stats from all referrals
-      const { data: allData } = await supabase
-        .from('referrals')
-        .select('reward_status, reward_amount')
+      const { data: allData } = await adminApi.getReferralStats()
 
       const allReferrals = (allData as Referral[]) || []
       setStats({
@@ -95,10 +81,7 @@ export default function AdminReferralPage() {
   useEffect(() => {
     async function loadUsers() {
       try {
-        const { data } = await supabase
-          .from('profiles')
-          .select('*')
-          .order('name', { ascending: true })
+        const { data } = await adminApi.getProfiles()
         if (data) setUsers(data as Profile[])
       } catch {}
     }
@@ -124,22 +107,10 @@ export default function AdminReferralPage() {
     if (!updateModal) return
     setSaving(true)
     try {
-      const update: Record<string, unknown> = {
-        reward_status: newStatus,
-        updated_at: new Date().toISOString(),
-      }
-      if (newStatus === 'paid') {
-        update.completed_at = new Date().toISOString()
-      }
+      await adminApi.updateReferralStatus(updateModal.id, newStatus)
 
-      const { error } = await supabase
-        .from('referrals')
-        .update(update)
-        .eq('id', updateModal.id)
-      if (error) throw error
-
-      await createAuditLog(
-        profile?.id || '',
+      await adminApi.createAuditLog(
+        'Admin',
         'update_referral_reward',
         'referral',
         updateModal.id,

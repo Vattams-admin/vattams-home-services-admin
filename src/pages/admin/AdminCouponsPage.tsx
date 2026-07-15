@@ -6,11 +6,10 @@ import { Badge } from '@/components/ui/badge'
 import { Input, Textarea, Select } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Modal } from '@/components/ui/modal'
-import { useAuth } from '@/lib/auth'
-import { supabase, type Coupon } from '@/lib/supabase'
+import { type Coupon } from '@/lib/supabase'
 import { formatDate, formatCurrency } from '@/lib/utils'
 import { COUPON_OFFER_TYPES } from '@/lib/constants'
-import { createAuditLog } from '@/lib/notifications'
+import { adminApi } from '@/lib/admin-api'
 import { useToast } from '@/hooks/use-toast'
 
 type FormData = {
@@ -42,7 +41,6 @@ const emptyForm: FormData = {
 }
 
 export default function AdminCouponsPage() {
-  const { profile } = useAuth()
   const toast = useToast()
 
   const [coupons, setCoupons] = useState<Coupon[]>([])
@@ -60,26 +58,21 @@ export default function AdminCouponsPage() {
   const loadCoupons = useCallback(async () => {
     setLoading(true)
     try {
-      let query = supabase
-        .from('coupons')
-        .select('*')
-        .order('created_at', { ascending: false })
-
+      const filters: { is_active?: boolean } = {}
       if (activeFilter === 'active') {
-        query = query.eq('is_active', true)
+        filters.is_active = true
       } else if (activeFilter === 'inactive') {
-        query = query.eq('is_active', false)
+        filters.is_active = false
       }
 
-      const { data, error } = await query
-      if (error) throw error
+      const { data } = await adminApi.getCoupons(filters)
 
-      let result = (data as Coupon[]) || []
+      let result = data || []
 
       if (search.trim()) {
         const q = search.toLowerCase()
         result = result.filter(
-          (c) =>
+          (c: any) =>
             c.code?.toLowerCase().includes(q) ||
             c.description?.toLowerCase().includes(q),
         )
@@ -161,14 +154,10 @@ export default function AdminCouponsPage() {
       }
 
       if (editingCoupon) {
-        const { error } = await supabase
-          .from('coupons')
-          .update(payload)
-          .eq('id', editingCoupon.id)
-        if (error) throw error
+        await adminApi.updateCoupon(editingCoupon.id, payload)
 
-        await createAuditLog(
-          profile?.id || '',
+        await adminApi.createAuditLog(
+          'Admin',
           'update_coupon',
           'coupon',
           editingCoupon.id,
@@ -176,11 +165,10 @@ export default function AdminCouponsPage() {
         )
         toast.success('Coupon updated successfully')
       } else {
-        const { error } = await supabase.from('coupons').insert(payload)
-        if (error) throw error
+        await adminApi.createCoupon(payload)
 
-        await createAuditLog(
-          profile?.id || '',
+        await adminApi.createAuditLog(
+          'Admin',
           'create_coupon',
           'coupon',
           null,
@@ -204,14 +192,10 @@ export default function AdminCouponsPage() {
     if (!deleteId) return
     setDeleting(true)
     try {
-      const { error } = await supabase
-        .from('coupons')
-        .delete()
-        .eq('id', deleteId)
-      if (error) throw error
+      await adminApi.deleteCoupon(deleteId)
 
-      await createAuditLog(
-        profile?.id || '',
+      await adminApi.createAuditLog(
+        'Admin',
         'delete_coupon',
         'coupon',
         deleteId,
@@ -229,14 +213,10 @@ export default function AdminCouponsPage() {
 
   async function toggleActive(coupon: Coupon) {
     try {
-      const { error } = await supabase
-        .from('coupons')
-        .update({ is_active: !coupon.is_active })
-        .eq('id', coupon.id)
-      if (error) throw error
+      await adminApi.toggleCoupon(coupon.id, !coupon.is_active)
 
-      await createAuditLog(
-        profile?.id || '',
+      await adminApi.createAuditLog(
+        'Admin',
         'toggle_coupon',
         'coupon',
         coupon.id,

@@ -7,12 +7,12 @@ import { Input, Select } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Modal } from '@/components/ui/modal'
 import {
-  supabase,
   type Profile,
   type Booking,
   type Review,
   type TechnicianWallet,
 } from '@/lib/supabase'
+import { adminApi } from '@/lib/admin-api'
 import {
   cn,
   formatDate,
@@ -64,22 +64,17 @@ export default function AdminTechniciansPage() {
   const loadTechnicians = useCallback(async () => {
     setLoading(true)
     try {
-      let query = supabase
-        .from('profiles')
-        .select('*')
-        .eq('role', 'technician')
-        .order('created_at', { ascending: false })
-
+      const filters: { status?: string; available?: 'true' | 'false' } = {}
       if (statusFilter !== 'all') {
-        query = query.eq('verification_status', statusFilter)
+        filters.status = statusFilter
       }
       if (availabilityFilter === 'available') {
-        query = query.eq('is_available', true)
+        filters.available = 'true'
       } else if (availabilityFilter === 'unavailable') {
-        query = query.eq('is_available', false)
+        filters.available = 'false'
       }
 
-      const { data, error } = await query
+      const { data, error } = await adminApi.getTechnicians(filters)
       if (error) throw error
 
       let result = (data as Profile[]) || []
@@ -87,23 +82,10 @@ export default function AdminTechniciansPage() {
       // Fetch stats
       const techIds = result.map((t) => t.id)
       if (techIds.length > 0) {
-        const [bookingsRes, reviewsRes, walletsRes] = await Promise.all([
-          supabase
-            .from('bookings')
-            .select('technician_id, status')
-            .in('technician_id', techIds),
-          supabase
-            .from('reviews')
-            .select('technician_id, rating')
-            .in('technician_id', techIds),
-          supabase
-            .from('technician_wallets')
-            .select('technician_id, total_earnings, total_jobs, completed_jobs')
-            .in('technician_id', techIds),
-        ])
+        const stats = await adminApi.getTechnicianStats(techIds)
 
         const bookingMap = new Map<string, { total: number; completed: number }>()
-        ;(bookingsRes.data || []).forEach(
+        ;(stats.bookings || []).forEach(
           (b: { technician_id: string; status: string }) => {
             const cur = bookingMap.get(b.technician_id) || {
               total: 0,
@@ -116,7 +98,7 @@ export default function AdminTechniciansPage() {
         )
 
         const reviewMap = new Map<string, { sum: number; count: number }>()
-        ;(reviewsRes.data || []).forEach(
+        ;(stats.reviews || []).forEach(
           (r: { technician_id: string; rating: number }) => {
             const cur = reviewMap.get(r.technician_id) || { sum: 0, count: 0 }
             cur.sum += Number(r.rating)
@@ -126,7 +108,7 @@ export default function AdminTechniciansPage() {
         )
 
         const walletMap = new Map<string, TechnicianWallet>()
-        ;(walletsRes.data as TechnicianWallet[] || []).forEach((w) => {
+        ;(stats.wallets as TechnicianWallet[] || []).forEach((w) => {
           walletMap.set(w.technician_id, w)
         })
 
@@ -174,23 +156,9 @@ export default function AdminTechniciansPage() {
     setModalLoading(true)
     try {
       const [bookingsRes, reviewsRes, walletRes] = await Promise.all([
-        supabase
-          .from('bookings')
-          .select('*')
-          .eq('technician_id', tech.id)
-          .order('created_at', { ascending: false })
-          .limit(10),
-        supabase
-          .from('reviews')
-          .select('*')
-          .eq('technician_id', tech.id)
-          .order('created_at', { ascending: false })
-          .limit(5),
-        supabase
-          .from('technician_wallets')
-          .select('*')
-          .eq('technician_id', tech.id)
-          .maybeSingle(),
+        adminApi.getTechnicianBookings(tech.id),
+        adminApi.getTechnicianReviews(tech.id),
+        adminApi.getTechnicianWallet(tech.id),
       ])
 
       setTechBookings((bookingsRes.data as Booking[]) || [])

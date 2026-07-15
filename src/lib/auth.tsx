@@ -37,14 +37,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function signIn(email: string, password: string) {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
-    return { error: error?.message || null }
+    if (!error) return { error: null }
+    if (error.message.includes('Email not confirmed')) {
+      return { error: 'Email not confirmed. Please check your inbox for a confirmation email, or contact support.' }
+    }
+    return { error: error.message }
   }
 
   async function signUp(email: string, password: string, mobile: string, name: string, role: UserRole) {
     const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { name, mobile, role } } })
     if (error) return { error: error.message }
     if (data.user) {
-      await supabase.from('profiles').insert({ id: data.user.id, email, name, mobile, role, verification_status: role === 'technician' ? 'pending_registration' : null, status: role === 'technician' ? 'inactive' : 'active' })
+      await supabase.from('profiles')
+        .upsert({
+          id: data.user.id, email, name, mobile, role,
+          verification_status: role === 'technician' ? 'pending_registration' : null,
+          status: role === 'technician' ? 'inactive' : 'active',
+        }, { onConflict: 'id' })
     }
     return { error: null }
   }

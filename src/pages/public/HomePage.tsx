@@ -171,7 +171,7 @@ export default function HomePage() {
                 <Button
                   size="lg"
                   variant="secondary"
-                  onClick={() => navigate('/login')}
+                  onClick={() => navigate('/book')}
                   className="bg-white text-blue-700 hover:bg-blue-50"
                 >
                   {t('cta.bookNow')} <ArrowRight className="ml-2 h-5 w-5" />

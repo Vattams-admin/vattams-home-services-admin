@@ -4,9 +4,8 @@ import { LayoutDashboard, CalendarCheck, IndianRupee, Wrench, Users, ShieldCheck
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { useAuth } from '@/lib/auth'
+import { adminApi } from '@/lib/admin-api'
 import {
-  supabase,
   type Booking,
   type Profile,
   type Notification,
@@ -38,7 +37,6 @@ type RecentActivity = {
 }
 
 export default function AdminDashboardPage() {
-  const { profile } = useAuth()
   const [stats, setStats] = useState<Stats | null>(null)
   const [recentBookings, setRecentBookings] = useState<Booking[]>([])
   const [pendingTechs, setPendingTechs] = useState<Profile[]>([])
@@ -49,68 +47,24 @@ export default function AdminDashboardPage() {
     let cancelled = false
     async function load() {
       try {
-        const [
-          bookingsRes,
-          revenueRes,
-          techsRes,
-          customersRes,
-          pendingRes,
-          notifRes,
-        ] = await Promise.all([
-          supabase
-            .from('bookings')
-            .select('*')
-            .order('created_at', { ascending: false })
-            .limit(10),
-          supabase
-            .from('invoices')
-            .select('amount, status')
-            .eq('status', 'paid'),
-          supabase
-            .from('profiles')
-            .select('id')
-            .eq('role', 'technician')
-            .eq('verification_status', 'approved'),
-          supabase
-            .from('profiles')
-            .select('id')
-            .eq('role', 'customer'),
-          supabase
-            .from('profiles')
-            .select('*')
-            .eq('role', 'technician')
-            .in('verification_status', [
-              'pending_registration',
-              'fee_pending',
-              'under_review',
-            ])
-            .order('created_at', { ascending: false })
-            .limit(5),
-          supabase
-            .from('notifications')
-            .select('*')
-            .order('created_at', { ascending: false })
-            .limit(5),
-        ])
-
+        const data = await adminApi.getDashboard()
         if (cancelled) return
 
-        const bookings = (bookingsRes.data as Booking[]) || []
-        const paidInvoices =
-          (revenueRes.data as { amount: number; status: string }[]) || []
-        const pending = (pendingRes.data as Profile[]) || []
-        const notifications = (notifRes.data as Notification[]) || []
+        const bookings = (data.bookings as Booking[]) || []
+        const pending = (data.pendingTechs as Profile[]) || []
+        const notifications = (data.notifications as Notification[]) || []
+        const technicians = (data.technicians as Profile[]) || []
+        const customers = (data.customers as Profile[]) || []
 
-        const totalRevenue = paidInvoices.reduce(
-          (sum, inv) => sum + Number(inv.amount),
-          0,
-        )
+        const totalRevenue = bookings
+          .filter((b) => b.status === 'completed')
+          .reduce((sum, b) => sum + Number(b.amount), 0)
 
         setStats({
           totalBookings: bookings.length,
           totalRevenue,
-          activeTechnicians: techsRes.data?.length || 0,
-          totalCustomers: customersRes.data?.length || 0,
+          activeTechnicians: technicians.length,
+          totalCustomers: customers.length,
           pendingVerifications: pending.length,
         })
         setRecentBookings(bookings.slice(0, 5))
@@ -244,7 +198,7 @@ export default function AdminDashboardPage() {
       <div className="rounded-xl bg-gradient-to-r from-slate-800 to-slate-900 p-6 text-white shadow-lg">
         <h1 className="text-2xl font-bold">Admin Dashboard</h1>
         <p className="mt-1 text-slate-300">
-          Welcome back, {profile?.name || 'Admin'}. Here's your platform
+          Welcome back, Admin. Here's your platform
           overview.
         </p>
       </div>

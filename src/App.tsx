@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from '@/lib/auth'
 import { AdminAuthProvider } from '@/lib/admin-auth'
 import { I18nProvider } from '@/lib/i18n'
@@ -90,6 +90,7 @@ export default function App() {
                 </Route>
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
+                <Route path="/signup" element={<Navigate to="/register" replace />} />
                 <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
                 <Route path="/dashboard" element={<ProtectedRoute roles={['customer']}><DashboardLayout /></ProtectedRoute>}>
@@ -117,6 +118,11 @@ export default function App() {
                 </Route>
 
                 <Route path="/admin/login" element={<AdminPinLoginPage />} />
+
+                {/* Public redirect routes */}
+                <Route path="/book" element={<Navigate to="/dashboard/book" replace />} />
+                <Route path="/profile" element={<Navigate to="/dashboard/profile" replace />} />
+                <Route path="/bookings" element={<Navigate to="/dashboard/bookings" replace />} />
 
                 <Route path="/admin" element={<AdminAuthProvider><AdminProtectedRoute><DashboardLayout /></AdminProtectedRoute></AdminAuthProvider>}>
                   <Route index element={<AdminDashboardPage />} />
