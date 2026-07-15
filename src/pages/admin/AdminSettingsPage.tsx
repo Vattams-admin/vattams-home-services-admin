@@ -142,8 +142,8 @@ export default function AdminSettingsPage() {
   const changePin = useCallback(async () => {
     setPinError(null)
     setPinSuccess(null)
-    if (pinForm.currentPin.length !== 6 || pinForm.newPin.length !== 6) {
-      setPinError('Both PINs must be exactly 6 digits.')
+    if (pinForm.currentPin.length < 6 || pinForm.currentPin.length > 8 || pinForm.newPin.length < 6 || pinForm.newPin.length > 8) {
+      setPinError('Both PINs must be 6-8 digits.')
       return
     }
     if (pinForm.currentPin === pinForm.newPin) {
@@ -617,7 +617,7 @@ export default function AdminSettingsPage() {
         <CardContent>
           <div className="space-y-4">
             <p className="text-sm text-slate-500">
-              Change the 6-digit PIN used to access the admin dashboard.
+              Change the 6-8 digit PIN used to access the admin dashboard.
             </p>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
@@ -626,10 +626,10 @@ export default function AdminSettingsPage() {
                   id="current_pin"
                   type="password"
                   inputMode="numeric"
-                  maxLength={6}
+                  maxLength={8}
                   value={pinForm.currentPin}
-                  onChange={(e) => setPinForm(prev => ({ ...prev, currentPin: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
-                  placeholder="••••••"
+                  onChange={(e) => setPinForm(prev => ({ ...prev, currentPin: e.target.value.replace(/\D/g, '').slice(0, 8) }))}
+                  placeholder="••••••••"
                 />
               </div>
               <div className="space-y-2">
@@ -638,10 +638,10 @@ export default function AdminSettingsPage() {
                   id="new_pin"
                   type="password"
                   inputMode="numeric"
-                  maxLength={6}
+                  maxLength={8}
                   value={pinForm.newPin}
-                  onChange={(e) => setPinForm(prev => ({ ...prev, newPin: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
-                  placeholder="••••••"
+                  onChange={(e) => setPinForm(prev => ({ ...prev, newPin: e.target.value.replace(/\D/g, '').slice(0, 8) }))}
+                  placeholder="••••••••"
                 />
               </div>
             </div>
@@ -655,7 +655,7 @@ export default function AdminSettingsPage() {
               variant="outline"
               loading={changingPin}
               onClick={changePin}
-              disabled={pinForm.currentPin.length !== 6 || pinForm.newPin.length !== 6}
+              disabled={pinForm.currentPin.length < 6 || pinForm.currentPin.length > 8 || pinForm.newPin.length < 6 || pinForm.newPin.length > 8}
             >
               <ShieldCheck className="mr-1 h-4 w-4" /> Change PIN
             </Button>

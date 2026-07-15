@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Delete, ShieldCheck, Loader2 } from 'lucide-react'
 import { useAdminAuth } from '@/lib/admin-auth'
 
-const PIN_LENGTH = 6
+const PIN_LENGTH = 8
 
 export default function AdminPinLogin() {
   const navigate = useNavigate()
@@ -55,10 +55,10 @@ export default function AdminPinLogin() {
           </div>
           <img src="/vattams.svg" alt="VATTAMS" className="mb-2 h-8 w-8" />
           <h1 className="text-xl font-bold text-white">VATTAMS Admin</h1>
-          <p className="mt-1 text-sm text-slate-400">Enter your 6-digit PIN</p>
+          <p className="mt-1 text-sm text-slate-400">Enter your 8-digit PIN</p>
         </div>
 
-        <div className="mb-6 flex justify-center gap-3">
+        <div className="mb-6 flex justify-center gap-2">
           {Array.from({ length: PIN_LENGTH }).map((_, i) => (
             <div
               key={i}

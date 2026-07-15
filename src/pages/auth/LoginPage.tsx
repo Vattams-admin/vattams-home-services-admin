@@ -15,7 +15,7 @@ const roleRedirects: Record<Role, string> = {
   admin: '/admin',
 };
 
-const PIN_LENGTH = 6;
+const PIN_LENGTH = 8;
 const ADMIN_STORAGE_KEY = 'vattams_admin_session';
 
 export default function LoginPage() {
@@ -145,7 +145,7 @@ export default function LoginPage() {
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
             <p className="text-sm text-slate-500">
-              {isAdmin ? 'Enter your 6-digit Admin PIN' : 'Sign in to your account to continue'}
+              {isAdmin ? 'Enter your 8-digit Admin PIN' : 'Sign in to your account to continue'}
             </p>
           </CardHeader>
 
@@ -178,7 +178,7 @@ export default function LoginPage() {
               /* Admin PIN Login */
               <div className="mt-6 space-y-4">
                 {/* PIN dots */}
-                <div className="flex justify-center gap-3">
+                <div className="flex justify-center gap-2">
                   {Array.from({ length: PIN_LENGTH }).map((_, i) => (
                     <div
                       key={i}

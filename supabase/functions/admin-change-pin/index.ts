@@ -22,9 +22,9 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    if (!/^\d{6}$/.test(new_pin)) {
+    if (!/^\d{6,8}$/.test(new_pin)) {
       return new Response(
-        JSON.stringify({ error: "New PIN must be exactly 6 digits" }),
+        JSON.stringify({ error: "New PIN must be 6-8 digits" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
