@@ -2,14 +2,14 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { supabase } from '@/lib/supabase'
 
 const STORAGE_KEY = 'vattams_admin_session'
-const TOKEN_EXPIRY_BUFFER = 60
+const ADMIN_EMAIL = 'admin@vattams.net'
 
 type AdminSession = { token: string; expiresAt: number }
 type AdminAuthContextType = {
   isAuthenticated: boolean
   loading: boolean
   login: (pin: string) => Promise<{ error: string | null }>
-  logout: () => void
+  logout: () => Promise<void>
 }
 
 const AdminAuthContext = createContext<AdminAuthContextType | undefined>(undefined)
@@ -20,7 +20,7 @@ function getStoredSession(): AdminSession | null {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return null
     const session = JSON.parse(raw) as AdminSession
-    if (session.expiresAt - TOKEN_EXPIRY_BUFFER <= Math.floor(Date.now() / 1000)) {
+    if (session.expiresAt - 60 <= Math.floor(Date.now() / 1000)) {
       localStorage.removeItem(STORAGE_KEY)
       return null
     }
@@ -38,20 +38,32 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
 
   async function login(pin: string) {
     try {
-      const { data, error } = await supabase.rpc('verify_admin_pin_and_login', {
-        input_pin: pin,
+      if (!pin || pin.length < 6) {
+        return { error: 'PIN must be at least 6 digits' }
+      }
+
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: ADMIN_EMAIL,
+        password: pin,
       })
+
       if (error) {
-        return { error: error.message || 'Invalid PIN' }
+        const msg = error.message || ''
+        if (msg.includes('Invalid login credentials')) {
+          return { error: 'Invalid PIN. Please try again.' }
+        }
+        return { error: msg }
       }
-      const result = data as { token?: string; expiresAt?: number; error?: string }
-      if (result.error) {
-        return { error: result.error }
+
+      if (!data.session) {
+        return { error: 'Authentication failed. Please try again.' }
       }
-      if (!result.token || !result.expiresAt) {
-        return { error: 'Invalid PIN' }
+
+      const expiresAt = Math.floor((data.session.expires_at || Date.now() / 1000 + 3600))
+      const newSession = {
+        token: data.session.access_token,
+        expiresAt,
       }
-      const newSession = { token: result.token, expiresAt: result.expiresAt }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newSession))
       setSession(newSession)
       return { error: null }
@@ -61,7 +73,12 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  function logout() {
+  async function logout() {
+    try {
+      await supabase.auth.signOut()
+    } catch {
+      // ignore
+    }
     localStorage.removeItem(STORAGE_KEY)
     setSession(null)
   }
