@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
-import { Star, Loader as Loader2, Search, CircleCheck as CheckCircle2, Circle as XCircle, Sparkles, Eye } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Star, Loader as Loader2, Search, CircleCheck as CheckCircle2, XCircle, Sparkles, Eye } from 'lucide-react'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input, Select } from '@/components/ui/input'

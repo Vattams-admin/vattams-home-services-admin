@@ -149,6 +149,7 @@ export default function AdminBlogCmsPage() {
 
       const payload = {
         title: postForm.title.trim(),
+        slug,
         excerpt: postForm.excerpt.trim(),
         content: postForm.content.trim(),
         image_url: postForm.image_url.trim() || null,

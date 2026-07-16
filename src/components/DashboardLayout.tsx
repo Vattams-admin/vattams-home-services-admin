@@ -1,6 +1,6 @@
 import { useState, useContext } from 'react'
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Users, Wrench, CalendarCheck, MapPin, CreditCard, BarChart3, Settings, Bell, Ticket, FileText, Gift, Megaphone, Bot, Building2, Mail, File as FileEdit, Star, TrendingUp, LogOut, Menu, X, User, Wallet, Briefcase, MapPinned, DollarSign, MessageSquare } from 'lucide-react'
+import { LayoutDashboard, Users, Wrench, CalendarCheck, MapPin, CreditCard, BarChart3, Settings, Bell, Ticket, FileText, Gift, Megaphone, Bot, Building2, Mail, File as FileEdit, Star, TrendingUp, LogOut, Menu, X, User, Wallet, Briefcase, MapPinned, DollarSign } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { AdminAuthContext } from '@/lib/admin-auth'
 import { cn } from '@/lib/utils'
@@ -35,21 +35,22 @@ const customerNav = [
 ]
 
 export function DashboardLayout() {
-  const { profile, signOut } = useAuth()
+  const auth = useAuth()
   const adminCtx = useContext(AdminAuthContext)
   const navigate = useNavigate()
   const location = useLocation()
   const [open, setOpen] = useState(false)
   const isAdminArea = location.pathname.startsWith('/admin')
-  const role = isAdminArea ? 'admin' : profile?.role === 'super_admin' ? 'admin' : profile?.role
+  const role = isAdminArea ? 'admin' : auth.profile?.role === 'super_admin' ? 'admin' : auth.profile?.role
   const nav = role === 'admin' ? adminNav : role === 'technician' ? technicianNav : customerNav
+  const displayName = isAdminArea ? 'Admin' : auth.profile?.name || 'User'
 
   const handleSignOut = async () => {
     if (isAdminArea && adminCtx) {
-      adminCtx.logout()
+      await adminCtx.logout()
       navigate('/admin/login', { replace: true })
     } else {
-      await signOut()
+      await auth.signOut()
       navigate('/')
     }
   }
@@ -77,7 +78,7 @@ export function DashboardLayout() {
         <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate-200 bg-white px-4">
           <button className="lg:hidden" onClick={() => setOpen(true)}><Menu className="h-5 w-5" /></button>
           <div className="flex items-center gap-3">
-            <span className="text-sm font-medium text-slate-700">{profile?.name}</span>
+            <span className="text-sm font-medium text-slate-700">{displayName}</span>
             <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 capitalize">{role}</span>
           </div>
         </header>

@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { Settings, Save, Loader as Loader2, Building2, Phone, MessageCircle, Share2, Clock, CreditCard, FileText, Globe, Palette, ShieldCheck } from 'lucide-react'
+import { Settings, Save, Loader as Loader2, Building2, Phone, MessageCircle, Share2, Clock, CreditCard, FileText, Globe, Palette } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input, Textarea } from '@/components/ui/input'
@@ -77,10 +77,6 @@ export default function AdminSettingsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [settingsId, setSettingsId] = useState<string | null>(null)
-  const [pinForm, setPinForm] = useState({ currentPin: '', newPin: '' })
-  const [changingPin, setChangingPin] = useState(false)
-  const [pinError, setPinError] = useState<string | null>(null)
-  const [pinSuccess, setPinSuccess] = useState<string | null>(null)
 
   const loadSettings = useCallback(async () => {
     setLoading(true)
@@ -133,44 +129,6 @@ export default function AdminSettingsPage() {
   useEffect(() => {
     loadSettings()
   }, [loadSettings])
-
-  const changePin = useCallback(async () => {
-    setPinError(null)
-    setPinSuccess(null)
-    if (pinForm.currentPin.length < 6 || pinForm.currentPin.length > 8 || pinForm.newPin.length < 6 || pinForm.newPin.length > 8) {
-      setPinError('Both PINs must be 6-8 digits.')
-      return
-    }
-    if (pinForm.currentPin === pinForm.newPin) {
-      setPinError('New PIN must be different from current PIN.')
-      return
-    }
-    setChangingPin(true)
-    try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-      const res = await fetch(`${supabaseUrl}/functions/v1/admin-change-pin`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${anonKey}`,
-          apikey: anonKey,
-        },
-        body: JSON.stringify({ current_pin: pinForm.currentPin, new_pin: pinForm.newPin }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setPinError(data.error || 'Failed to change PIN')
-      } else {
-        setPinSuccess('PIN changed successfully.')
-        setPinForm({ currentPin: '', newPin: '' })
-      }
-    } catch {
-      setPinError('Network error. Please try again.')
-    } finally {
-      setChangingPin(false)
-    }
-  }, [pinForm])
 
   async function saveSettings() {
     setSaving(true)
@@ -591,62 +549,6 @@ export default function AdminSettingsPage() {
               }
               placeholder="google-site-verification=..."
             />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Admin PIN Change */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5 text-blue-600" /> Admin PIN
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <p className="text-sm text-slate-500">
-              Change the 6-8 digit PIN used to access the admin dashboard.
-            </p>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="current_pin">Current PIN</Label>
-                <Input
-                  id="current_pin"
-                  type="password"
-                  inputMode="numeric"
-                  maxLength={8}
-                  value={pinForm.currentPin}
-                  onChange={(e) => setPinForm(prev => ({ ...prev, currentPin: e.target.value.replace(/\D/g, '').slice(0, 8) }))}
-                  placeholder="••••••••"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="new_pin">New PIN</Label>
-                <Input
-                  id="new_pin"
-                  type="password"
-                  inputMode="numeric"
-                  maxLength={8}
-                  value={pinForm.newPin}
-                  onChange={(e) => setPinForm(prev => ({ ...prev, newPin: e.target.value.replace(/\D/g, '').slice(0, 8) }))}
-                  placeholder="••••••••"
-                />
-              </div>
-            </div>
-            {pinError && (
-              <p className="text-sm text-red-600">{pinError}</p>
-            )}
-            {pinSuccess && (
-              <p className="text-sm text-green-600">{pinSuccess}</p>
-            )}
-            <Button
-              variant="outline"
-              loading={changingPin}
-              onClick={changePin}
-              disabled={pinForm.currentPin.length < 6 || pinForm.currentPin.length > 8 || pinForm.newPin.length < 6 || pinForm.newPin.length > 8}
-            >
-              <ShieldCheck className="mr-1 h-4 w-4" /> Change PIN
-            </Button>
           </div>
         </CardContent>
       </Card>

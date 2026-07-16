@@ -1,13 +1,11 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react'
 import { supabase } from '@/lib/supabase'
+import type { Session } from '@supabase/supabase-js'
 
-const STORAGE_KEY = 'vattams_admin_session'
-const ADMIN_EMAIL = 'admin@vattams.net'
-
-type AdminSession = { token: string; expiresAt: number }
 type AdminAuthContextType = {
   isAuthenticated: boolean
   loading: boolean
+  session: Session | null
   login: (email: string, password: string) => Promise<{ error: string | null }>
   logout: () => Promise<void>
 }
@@ -15,37 +13,38 @@ type AdminAuthContextType = {
 const AdminAuthContext = createContext<AdminAuthContextType | undefined>(undefined)
 export { AdminAuthContext }
 
-function getStoredSession(): AdminSession | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return null
-    const session = JSON.parse(raw) as AdminSession
-    if (session.expiresAt - 60 <= Math.floor(Date.now() / 1000)) {
-      localStorage.removeItem(STORAGE_KEY)
-      return null
-    }
-    return session
-  } catch {
-    return null
-  }
-}
-
 export function AdminAuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<AdminSession | null>(null)
+  const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => { setSession(getStoredSession()); setLoading(false) }, [])
+  useEffect(() => {
+    let mounted = true
 
-  async function login(email: string, password: string) {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!mounted) return
+      setSession(session)
+      setLoading(false)
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return
+      setSession(session)
+      setLoading(false)
+    })
+
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
+  }, [])
+
+  const login = useCallback(async (email: string, password: string) => {
     try {
       if (!email || !password) {
         return { error: 'Please enter email and password.' }
       }
 
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
 
       if (error) {
         const msg = error.message || ''
@@ -59,32 +58,24 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         return { error: 'Authentication failed. Please try again.' }
       }
 
-      const expiresAt = Math.floor((data.session.expires_at || Date.now() / 1000 + 3600))
-      const newSession = {
-        token: data.session.access_token,
-        expiresAt,
-      }
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newSession))
-      setSession(newSession)
+      setSession(data.session)
       return { error: null }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unable to connect. Please try again.'
-      return { error: message }
+    } catch {
+      return { error: 'Unable to connect. Please try again.' }
     }
-  }
+  }, [])
 
-  async function logout() {
+  const logout = useCallback(async () => {
     try {
       await supabase.auth.signOut()
     } catch {
       // ignore
     }
-    localStorage.removeItem(STORAGE_KEY)
     setSession(null)
-  }
+  }, [])
 
   return (
-    <AdminAuthContext.Provider value={{ isAuthenticated: !!session, loading, login, logout }}>
+    <AdminAuthContext.Provider value={{ isAuthenticated: !!session, loading, session, login, logout }}>
       {children}
     </AdminAuthContext.Provider>
   )

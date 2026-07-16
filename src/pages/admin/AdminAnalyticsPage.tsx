@@ -51,18 +51,18 @@ export default function AdminAnalyticsPage() {
 
       const { data } = await adminApi.getAnalyticsEvents(filters)
 
-      const allEvents = data || []
+      const allEvents: AnalyticsEvent[] = (data as AnalyticsEvent[]) || []
       setEvents(allEvents)
 
       // Calculate stats
       const pageViewEvents = allEvents.filter(
-        (e: any) => e.event_category === 'page_view',
+        (e) => e.event_category === 'page_view',
       )
       const userIds = new Set(
-        allEvents.filter((e: any) => e.user_id).map((e: any) => e.user_id),
+        allEvents.filter((e) => e.user_id).map((e) => e.user_id),
       )
       const sessionIds = new Set(
-        allEvents.filter((e: any) => e.session_id).map((e: any) => e.session_id),
+        allEvents.filter((e) => e.session_id).map((e) => e.session_id),
       )
 
       setStats({
@@ -74,7 +74,7 @@ export default function AdminAnalyticsPage() {
 
       // Calculate top pages
       const pageCountMap: Record<string, number> = {}
-      pageViewEvents.forEach((e: any) => {
+      pageViewEvents.forEach((e) => {
         const url = e.page_url || 'unknown'
         pageCountMap[url] = (pageCountMap[url] || 0) + 1
       })
@@ -86,7 +86,7 @@ export default function AdminAnalyticsPage() {
 
       // Calculate category counts
       const categoryMap: Record<string, number> = {}
-      allEvents.forEach((e: any) => {
+      allEvents.forEach((e) => {
         const cat = e.event_category || 'other'
         categoryMap[cat] = (categoryMap[cat] || 0) + 1
       })

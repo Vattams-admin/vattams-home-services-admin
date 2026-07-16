@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Eye, EyeOff, ShieldCheck, Loader2, AlertCircle } from 'lucide-react'
 import { useAdminAuth } from '@/lib/admin-auth'
 
-export default function AdminPinLogin() {
+export default function AdminLoginPage() {
   const navigate = useNavigate()
   const { isAuthenticated, loading, login } = useAdminAuth()
   const [email, setEmail] = useState('admin@vattams.net')

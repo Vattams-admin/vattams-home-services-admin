@@ -23,7 +23,8 @@ const ReviewsPage = lazy(() => import('@/pages/public/ReviewsPage'))
 const LoginPage = lazy(() => import('@/pages/auth/LoginPage'))
 const RegisterPage = lazy(() => import('@/pages/auth/RegisterPage'))
 const ForgotPasswordPage = lazy(() => import('@/pages/auth/ForgotPasswordPage'))
-const AdminPinLoginPage = lazy(() => import('@/pages/auth/AdminPinLogin'))
+const ResetPasswordPage = lazy(() => import('@/pages/auth/ResetPasswordPage'))
+const AdminLoginPage = lazy(() => import('@/pages/auth/AdminLoginPage'))
 
 const CustomerDashboardPage = lazy(() => import('@/pages/customer/CustomerDashboardPage'))
 const CustomerBookingsPage = lazy(() => import('@/pages/customer/CustomerBookingsPage'))
@@ -92,6 +93,7 @@ export default function App() {
                 <Route path="/register" element={<RegisterPage />} />
                 <Route path="/signup" element={<Navigate to="/register" replace />} />
                 <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
 
                 <Route path="/dashboard" element={<ProtectedRoute roles={['customer']}><DashboardLayout /></ProtectedRoute>}>
                   <Route index element={<CustomerDashboardPage />} />
@@ -117,7 +119,7 @@ export default function App() {
                   <Route path="referrals" element={<TechnicianReferralPage />} />
                 </Route>
 
-                <Route path="/admin/login" element={<AdminAuthProvider><AdminPinLoginPage /></AdminAuthProvider>} />
+                <Route path="/admin/login" element={<AdminAuthProvider><AdminLoginPage /></AdminAuthProvider>} />
 
                 {/* Public redirect routes */}
                 <Route path="/book" element={<Navigate to="/dashboard/book" replace />} />
