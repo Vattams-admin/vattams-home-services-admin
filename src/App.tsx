@@ -1,13 +1,13 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from '@/lib/auth'
-import { AdminAuthProvider } from '@/lib/admin-auth'
+import { SuperAdminAuthProvider } from '@/lib/super-admin-auth'
 import { I18nProvider } from '@/lib/i18n'
 import { ToastProvider } from '@/hooks/use-toast'
 import { PublicLayout } from '@/components/PublicLayout'
 import { DashboardLayout } from '@/components/DashboardLayout'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
-import { AdminProtectedRoute } from '@/components/AdminProtectedRoute'
+import { SuperAdminProtectedRoute } from '@/components/SuperAdminProtectedRoute'
 import { LoadingScreen, NotFoundPage } from '@/components/LoadingScreen'
 
 const HomePage = lazy(() => import('@/pages/public/HomePage'))
@@ -19,12 +19,13 @@ const CitiesPage = lazy(() => import('@/pages/public/CitiesPage'))
 const FaqPage = lazy(() => import('@/pages/public/FaqPage'))
 const BlogPage = lazy(() => import('@/pages/public/BlogPage'))
 const ReviewsPage = lazy(() => import('@/pages/public/ReviewsPage'))
+const ConnectPage = lazy(() => import('@/pages/public/ConnectPage'))
 
 const LoginPage = lazy(() => import('@/pages/auth/LoginPage'))
 const RegisterPage = lazy(() => import('@/pages/auth/RegisterPage'))
 const ForgotPasswordPage = lazy(() => import('@/pages/auth/ForgotPasswordPage'))
 const ResetPasswordPage = lazy(() => import('@/pages/auth/ResetPasswordPage'))
-const AdminLoginPage = lazy(() => import('@/pages/auth/AdminLoginPage'))
+const SuperAdminLoginPage = lazy(() => import('@/pages/auth/SuperAdminLoginPage'))
 
 const CustomerDashboardPage = lazy(() => import('@/pages/customer/CustomerDashboardPage'))
 const CustomerBookingsPage = lazy(() => import('@/pages/customer/CustomerBookingsPage'))
@@ -88,6 +89,7 @@ export default function App() {
                   <Route path="/faq" element={<FaqPage />} />
                   <Route path="/blog" element={<BlogPage />} />
                   <Route path="/reviews" element={<ReviewsPage />} />
+                  <Route path="/connect" element={<ConnectPage />} />
                 </Route>
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
@@ -119,15 +121,15 @@ export default function App() {
                   <Route path="referrals" element={<TechnicianReferralPage />} />
                 </Route>
 
-                <Route path="/admin/login" element={<AdminAuthProvider><AdminLoginPage /></AdminAuthProvider>} />
+                <Route path="/admin/login" element={<SuperAdminAuthProvider><SuperAdminLoginPage /></SuperAdminAuthProvider>} />
 
                 {/* Public redirect routes */}
-                <Route path="/book" element={<Navigate to="/dashboard/book" replace />} />
                 <Route path="/profile" element={<Navigate to="/dashboard/profile" replace />} />
                 <Route path="/bookings" element={<Navigate to="/dashboard/bookings" replace />} />
 
-                <Route path="/admin" element={<AdminAuthProvider><AdminProtectedRoute><DashboardLayout /></AdminProtectedRoute></AdminAuthProvider>}>
-                  <Route index element={<AdminDashboardPage />} />
+                <Route path="/admin" element={<SuperAdminAuthProvider><SuperAdminProtectedRoute><DashboardLayout /></SuperAdminProtectedRoute></SuperAdminAuthProvider>}>
+                  <Route index element={<Navigate to="/admin/dashboard" replace />} />
+                  <Route path="dashboard" element={<AdminDashboardPage />} />
                   <Route path="verification" element={<AdminVerificationPage />} />
                   <Route path="verifications" element={<AdminVerificationPage />} />
                   <Route path="bookings" element={<AdminBookingsPage />} />

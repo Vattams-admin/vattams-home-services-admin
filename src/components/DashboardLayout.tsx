@@ -1,12 +1,12 @@
-import { useState, useContext } from 'react'
+import { useState } from 'react'
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { LayoutDashboard, Users, Wrench, CalendarCheck, MapPin, CreditCard, BarChart3, Settings, Bell, Ticket, FileText, Gift, Megaphone, Bot, Building2, Mail, File as FileEdit, Star, TrendingUp, LogOut, Menu, X, User, Wallet, Briefcase, MapPinned, DollarSign } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
-import { AdminAuthContext } from '@/lib/admin-auth'
+import { useSuperAdminAuth } from '@/lib/super-admin-auth'
 import { cn } from '@/lib/utils'
 
 const adminNav = [
-  { to: '/admin', label: 'Dashboard', icon: LayoutDashboard }, { to: '/admin/verification', label: 'Verification', icon: User },
+  { to: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard }, { to: '/admin/verification', label: 'Verification', icon: User },
   { to: '/admin/bookings', label: 'Bookings', icon: CalendarCheck }, { to: '/admin/crm', label: 'CRM', icon: Users },
   { to: '/admin/customers', label: 'Customers', icon: Users }, { to: '/admin/technicians', label: 'Technicians', icon: Wrench },
   { to: '/admin/service-areas', label: 'Service Areas', icon: MapPin }, { to: '/admin/payments', label: 'Payments', icon: CreditCard },
@@ -36,21 +36,21 @@ const customerNav = [
 
 export function DashboardLayout() {
   const auth = useAuth()
-  const adminCtx = useContext(AdminAuthContext)
+  const superAdminAuth = useSuperAdminAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [open, setOpen] = useState(false)
   const isAdminArea = location.pathname.startsWith('/admin')
   const role = isAdminArea ? 'admin' : auth.profile?.role === 'super_admin' ? 'admin' : auth.profile?.role
   const nav = role === 'admin' ? adminNav : role === 'technician' ? technicianNav : customerNav
-  const displayName = isAdminArea ? 'Admin' : auth.profile?.name || 'User'
+  const displayName = isAdminArea ? 'Super Admin' : auth.profile?.name || 'User'
 
-  const handleSignOut = async () => {
-    if (isAdminArea && adminCtx) {
-      await adminCtx.logout()
+  const handleSignOut = () => {
+    if (isAdminArea) {
+      superAdminAuth.logout()
       navigate('/admin/login', { replace: true })
     } else {
-      await auth.signOut()
+      auth.signOut()
       navigate('/')
     }
   }

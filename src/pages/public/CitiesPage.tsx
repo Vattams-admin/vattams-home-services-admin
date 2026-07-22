@@ -167,12 +167,11 @@ export default function CitiesPage() {
                           </div>
                         </div>
                       </div>
-                      <Button
-                        size="sm"
-                        onClick={() => navigate('/book')}
-                      >
-                        Book <ArrowRight className="ml-1 h-4 w-4" />
-                      </Button>
+                      <Link to="/connect">
+                        <Button size="sm">
+                          Connect <ArrowRight className="ml-1 h-4 w-4" />
+                        </Button>
+                      </Link>
                     </div>
                     {details && (
                       <>
@@ -292,14 +291,11 @@ export default function CitiesPage() {
             Professional home services are just a click away. Book now and get verified technicians at your doorstep.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-4">
-            <Button
-              size="lg"
-              variant="secondary"
-              onClick={() => navigate('/book')}
-              className="bg-white text-blue-700 hover:bg-blue-50"
-            >
-              Book Now <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
+            <Link to="/connect">
+              <Button size="lg" className="bg-white text-blue-700 hover:bg-blue-50">
+                Connect <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
+            </Link>
             <Link to="/services">
               <Button
                 size="lg"

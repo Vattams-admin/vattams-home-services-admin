@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Snowflake, Droplets, Zap, Sparkles, Bug, PaintRoller, Hammer, Wrench, ArrowRight, CircleCheck as CheckCircle2, Phone, Clock, Star, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -258,12 +258,11 @@ export default function ServicesPage() {
                         </p>
                       </div>
                       <div className="mt-4 space-y-2">
-                        <Button
-                          className="w-full"
-                          onClick={() => navigate('/book')}
-                        >
-                          Book Now <ArrowRight className="ml-2 h-4 w-4" />
-                        </Button>
+                        <Link to="/connect" className="block">
+                          <Button className="w-full">
+                            Connect <ArrowRight className="ml-2 h-4 w-4" />
+                          </Button>
+                        </Link>
                         <a href={telLink(PRIMARY_PHONE)} className="block">
                           <Button variant="outline" className="w-full">
                             <Phone className="mr-2 h-4 w-4" /> Call to Book
@@ -352,14 +351,11 @@ export default function ServicesPage() {
             Book online or call us directly. Our team is ready to help.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-4">
-            <Button
-              size="lg"
-              variant="secondary"
-              onClick={() => navigate('/book')}
-              className="bg-white text-blue-700 hover:bg-blue-50"
-            >
-              Book Now <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
+            <Link to="/connect">
+              <Button size="lg" className="bg-white text-blue-700 hover:bg-blue-50">
+                Connect <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
+            </Link>
             <a href={whatsappLink(WHATSAPP_NUMBER, 'Hi, I would like to book a service.')}>
               <Button
                 size="lg"

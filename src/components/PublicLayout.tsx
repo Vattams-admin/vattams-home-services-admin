@@ -23,17 +23,17 @@ export function PublicLayout({ children }: { children?: ReactNode }) {
             {navLinks.map(l => <Link key={l.to} to={l.to} className="text-sm font-medium text-slate-600 hover:text-blue-600">{l.label}</Link>)}
           </nav>
           <div className="hidden lg:flex items-center gap-3">
-            <Link to="/login" className="text-sm font-medium text-slate-700 hover:text-blue-600">{t('cta.login')}</Link>
-            <Link to="/register" className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">{t('cta.getStarted')}</Link>
+            <Link to="/connect" className="text-sm font-medium text-slate-700 hover:text-blue-600">Connect</Link>
+            <Link to="/admin/login" className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-900">Admin</Link>
           </div>
           <button className="lg:hidden" onClick={() => setOpen(!open)}>{open ? <X /> : <Menu />}</button>
         </div>
         {open && (
           <nav className="lg:hidden border-t border-slate-200 bg-white px-4 py-4">
             {navLinks.map(l => <Link key={l.to} to={l.to} className="block py-2 text-sm font-medium text-slate-600 hover:text-blue-600" onClick={() => setOpen(false)}>{l.label}</Link>)}
-            <div className="mt-4 flex gap-3">
-              <Link to="/login" className="flex-1 rounded-lg border border-slate-300 px-4 py-2 text-center text-sm font-medium" onClick={() => setOpen(false)}>{t('cta.login')}</Link>
-              <Link to="/register" className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-center text-sm font-medium text-white" onClick={() => setOpen(false)}>{t('cta.getStarted')}</Link>
+            <div className="mt-4 flex flex-col gap-3">
+              <Link to="/connect" className="rounded-lg border border-slate-300 px-4 py-2 text-center text-sm font-medium" onClick={() => setOpen(false)}>Connect</Link>
+              <Link to="/admin/login" className="rounded-lg bg-slate-800 px-4 py-2 text-center text-sm font-medium text-white" onClick={() => setOpen(false)}>Admin</Link>
             </div>
           </nav>
         )}

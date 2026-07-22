@@ -168,14 +168,15 @@ export default function HomePage() {
                 {t('hero.subtitle')}
               </p>
               <div className="flex flex-wrap gap-4">
-                <Button
-                  size="lg"
-                  variant="secondary"
-                  onClick={() => navigate('/book')}
-                  className="bg-white text-blue-700 hover:bg-blue-50"
-                >
-                  {t('cta.bookNow')} <ArrowRight className="ml-2 h-5 w-5" />
-                </Button>
+                <Link to="/connect">
+                  <Button
+                    size="lg"
+                    variant="secondary"
+                    className="bg-white text-blue-700 hover:bg-blue-50"
+                  >
+                    Connect <ArrowRight className="ml-2 h-5 w-5" />
+                  </Button>
+                </Link>
                 <a href={telLink(PRIMARY_PHONE)}>
                   <Button
                     size="lg"
@@ -185,15 +186,6 @@ export default function HomePage() {
                     <Phone className="mr-2 h-5 w-5" /> {PRIMARY_PHONE}
                   </Button>
                 </a>
-                <Link to="/register">
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    className="border-white/30 bg-transparent text-white hover:bg-white/10"
-                  >
-                    <Wrench className="mr-2 h-5 w-5" /> Join as Technician
-                  </Button>
-                </Link>
               </div>
               <div className="flex flex-wrap items-center gap-6 text-sm text-blue-100">
                 <div className="flex items-center gap-2">
@@ -414,14 +406,15 @@ export default function HomePage() {
             Get professional home services at your doorstep. Call us or book online today.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-4">
-            <Button
-              size="lg"
-              variant="secondary"
-              onClick={() => navigate('/login')}
-              className="bg-white text-blue-700 hover:bg-blue-50"
-            >
-              {t('cta.bookNow')} <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
+            <Link to="/connect">
+              <Button
+                size="lg"
+                variant="secondary"
+                className="bg-white text-blue-700 hover:bg-blue-50"
+              >
+                Connect <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
+            </Link>
             <a href={whatsappLink(WHATSAPP_NUMBER, 'Hi, I would like to book a service.')}>
               <Button
                 size="lg"

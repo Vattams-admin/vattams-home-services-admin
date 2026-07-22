@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   Snowflake,
   Droplets,
@@ -277,13 +277,14 @@ export default function PricingPage() {
                       </li>
                     ))}
                   </ul>
-                  <Button
-                    className="mt-6 w-full"
-                    variant={plan.popular ? 'primary' : 'outline'}
-                    onClick={() => navigate('/book')}
-                  >
-                    Book {plan.name} <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
+                  <Link to="/connect" className="mt-6 block">
+                    <Button
+                      className="w-full"
+                      variant={plan.popular ? 'primary' : 'outline'}
+                    >
+                      Connect <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  </Link>
                 </CardContent>
               </Card>
             ))}
@@ -379,14 +380,11 @@ export default function PricingPage() {
             Book your service today or call us for a custom quote.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-4">
-            <Button
-              size="lg"
-              variant="secondary"
-              onClick={() => navigate('/book')}
-              className="bg-white text-blue-700 hover:bg-blue-50"
-            >
-              Book Now <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
+            <Link to="/connect">
+              <Button size="lg" className="bg-white text-blue-700 hover:bg-blue-50">
+                Connect <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
+            </Link>
             <a href={telLink(PRIMARY_PHONE)}>
               <Button
                 size="lg"

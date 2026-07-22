@@ -397,7 +397,7 @@ export default function ContactPage() {
                     href={whatsappLink(TECHNICIAN_WHATSAPP_NUMBER, 'Hi, I am a technician and would like to join VATTAMS.')}
                     className="flex items-center justify-between rounded-lg bg-white p-3 text-sm transition hover:shadow-sm"
                   >
-                    <span className="text-slate-700">Join as technician</span>
+                    <span className="text-slate-700">Connect</span>
                     <ArrowRight className="h-4 w-4 text-green-600" />
                   </a>
                 </div>

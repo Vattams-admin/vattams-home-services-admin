@@ -338,14 +338,11 @@ export default function FaqPage() {
             Book a service today and join 10,000+ happy customers across Tamil Nadu.
           </p>
           <div className="mt-8">
-            <Button
-              size="lg"
-              variant="secondary"
-              onClick={() => navigate('/book')}
-              className="bg-white text-blue-700 hover:bg-blue-50"
-            >
-              Book Now <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
+            <Link to="/connect">
+              <Button size="lg" className="bg-white text-blue-700 hover:bg-blue-50">
+                Connect <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
+            </Link>
           </div>
         </div>
       </section>
