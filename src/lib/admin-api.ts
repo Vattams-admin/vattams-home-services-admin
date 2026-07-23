@@ -142,9 +142,13 @@ export const adminApi: Record<string, (...args: any[]) => Promise<any>> = {
   },
 
   async getTechnicianStats(techIds: string[]) {
-    const { data, error } = await supabase.from('technician_wallets').select('*').in('technician_id', techIds)
-    if (error) throw new Error(error.message)
-    return { data, wallets: data || [] }
+    const [walletsRes, bookingsRes, reviewsRes] = await Promise.all([
+      supabase.from('technician_wallets').select('*').in('technician_id', techIds),
+      supabase.from('bookings').select('technician_id, status').in('technician_id', techIds),
+      supabase.from('reviews').select('technician_id, rating').in('technician_id', techIds),
+    ])
+    if (walletsRes.error) throw new Error(walletsRes.error.message)
+    return { data: walletsRes.data || [], wallets: walletsRes.data || [], bookings: bookingsRes.data || [], reviews: reviewsRes.data || [] }
   },
 
   async approveTechnician(id: string) {
