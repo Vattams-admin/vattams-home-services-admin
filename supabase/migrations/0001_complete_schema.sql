@@ -1,11 +1,32 @@
 -- ============================================================================
--- VATTAMS Admin Panel - Complete Database Migration Script
--- Run this in the Supabase SQL Editor for project nfcibyprftnowaiwlxxc
+-- VATTAMS Admin Panel - Complete Database Migration Script (Idempotent)
+-- For project nfcibyprftnowaiwlxxc
 -- ============================================================================
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
--- TABLES (profiles already exists, skipped)
+-- ============================================================================
+-- STEP 1: ALTER profiles table to add all missing columns
+-- (Live profiles table only has: id, email, role, created_at)
+-- ============================================================================
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS name text;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS mobile text;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS full_name text;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS address text;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS district text;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS city text;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS pincode text;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS experience text;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS skills text[];
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS bio text;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS status text DEFAULT 'active';
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS is_available boolean DEFAULT true;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS rejection_reason text;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS verification_status text DEFAULT 'pending_registration';
+
+-- ============================================================================
+-- STEP 2: CREATE ALL TABLES (idempotent)
+-- ============================================================================
 
 CREATE TABLE IF NOT EXISTS ai_conversations (
     id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -188,7 +209,9 @@ CREATE TABLE IF NOT EXISTS whatsapp_templates (
     name text NOT NULL, template text NOT NULL, category text, is_active boolean NOT NULL DEFAULT true, created_at timestamptz NOT NULL DEFAULT now()
 );
 
--- UNIQUE CONSTRAINTS
+-- ============================================================================
+-- STEP 3: UNIQUE CONSTRAINTS (idempotent)
+-- ============================================================================
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'blog_categories_slug_key') THEN ALTER TABLE blog_categories ADD CONSTRAINT blog_categories_slug_key UNIQUE (slug); END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'blog_tags_slug_key') THEN ALTER TABLE blog_tags ADD CONSTRAINT blog_tags_slug_key UNIQUE (slug); END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'bookings_booking_number_key') THEN ALTER TABLE bookings ADD CONSTRAINT bookings_booking_number_key UNIQUE (booking_number); END IF; END $$;
@@ -197,7 +220,9 @@ DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'invoices
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'referral_codes_code_key') THEN ALTER TABLE referral_codes ADD CONSTRAINT referral_codes_code_key UNIQUE (code); END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'technician_wallets_technician_id_key') THEN ALTER TABLE technician_wallets ADD CONSTRAINT technician_wallets_technician_id_key UNIQUE (technician_id); END IF; END $$;
 
--- FOREIGN KEYS
+-- ============================================================================
+-- STEP 4: FOREIGN KEYS (idempotent)
+-- ============================================================================
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_amc_renewals_customer') THEN ALTER TABLE amc_renewals ADD CONSTRAINT fk_amc_renewals_customer FOREIGN KEY (customer_id) REFERENCES profiles(id) ON DELETE CASCADE; END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_blog_posts_category') THEN ALTER TABLE blog_posts ADD CONSTRAINT fk_blog_posts_category FOREIGN KEY (category_id) REFERENCES blog_categories(id) ON DELETE SET NULL; END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_booking_photos_booking') THEN ALTER TABLE booking_photos ADD CONSTRAINT fk_booking_photos_booking FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE; END IF; END $$;
@@ -232,7 +257,9 @@ DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_techn
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_technician_wallets_technician') THEN ALTER TABLE technician_wallets ADD CONSTRAINT fk_technician_wallets_technician FOREIGN KEY (technician_id) REFERENCES profiles(id) ON DELETE CASCADE; END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_verification_payments_technician') THEN ALTER TABLE verification_payments ADD CONSTRAINT fk_verification_payments_technician FOREIGN KEY (technician_id) REFERENCES profiles(id) ON DELETE CASCADE; END IF; END $$;
 
--- INDEXES
+-- ============================================================================
+-- STEP 5: INDEXES (idempotent)
+-- ============================================================================
 CREATE INDEX IF NOT EXISTS idx_bookings_customer ON bookings (customer_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_status ON bookings (status);
 CREATE INDEX IF NOT EXISTS idx_bookings_technician ON bookings (technician_id);
@@ -244,7 +271,10 @@ CREATE INDEX IF NOT EXISTS idx_revenue_transactions_created ON revenue_transacti
 CREATE INDEX IF NOT EXISTS idx_service_areas_active ON service_areas (is_active);
 CREATE INDEX IF NOT EXISTS idx_technician_wallets_tech ON technician_wallets (technician_id);
 
--- ENABLE RLS ON ALL TABLES
+-- ============================================================================
+-- STEP 6: ENABLE RLS ON ALL TABLES
+-- ============================================================================
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ai_conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ai_insights ENABLE ROW LEVEL SECURITY;
 ALTER TABLE amc_renewals ENABLE ROW LEVEL SECURITY;
@@ -273,7 +303,6 @@ ALTER TABLE marketing_campaigns ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE popup_announcements ENABLE ROW LEVEL SECURITY;
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE referral_codes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE referrals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE refunds ENABLE ROW LEVEL SECURITY;
@@ -292,7 +321,9 @@ ALTER TABLE technician_wallets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE verification_payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE whatsapp_templates ENABLE ROW LEVEL SECURITY;
 
--- RLS POLICIES (anon CRUD for all tables)
+-- ============================================================================
+-- STEP 7: RLS POLICIES (anon CRUD for all tables, idempotent)
+-- ============================================================================
 DO $$
 DECLARE t text;
 BEGIN
@@ -308,7 +339,9 @@ BEGIN
   END LOOP;
 END $$;
 
--- RPC FUNCTIONS
+-- ============================================================================
+-- STEP 8: RPC FUNCTIONS (CREATE OR REPLACE = idempotent)
+-- ============================================================================
 CREATE OR REPLACE FUNCTION approve_technician(tech_id uuid) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$ BEGIN UPDATE profiles SET verification_status = 'approved', status = 'active' WHERE id = tech_id AND role = 'technician'; RETURN jsonb_build_object('success', true); END; $$;
 CREATE OR REPLACE FUNCTION reject_technician(tech_id uuid, reason text DEFAULT NULL) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$ BEGIN UPDATE profiles SET verification_status = 'rejected', status = 'inactive', rejection_reason = reason WHERE id = tech_id AND role = 'technician'; RETURN jsonb_build_object('success', true); END; $$;
 CREATE OR REPLACE FUNCTION assign_technician_to_booking(booking_id uuid, tech_id uuid) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$ BEGIN UPDATE bookings SET technician_id = tech_id, status = 'assigned', updated_at = now() WHERE id = booking_id; RETURN jsonb_build_object('success', true); END; $$;
@@ -327,12 +360,16 @@ CREATE OR REPLACE FUNCTION get_all_referrals() RETURNS jsonb LANGUAGE sql SECURI
 CREATE OR REPLACE FUNCTION get_all_revenue_transactions() RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$ SELECT COALESCE(jsonb_agg(to_jsonb(t.*)), '[]') FROM revenue_transactions t; $$;
 CREATE OR REPLACE FUNCTION get_all_service_areas() RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$ SELECT COALESCE(jsonb_agg(to_jsonb(t.*)), '[]') FROM service_areas t; $$;
 
--- TRIGGER FUNCTIONS
+-- ============================================================================
+-- STEP 9: TRIGGER FUNCTIONS (CREATE OR REPLACE = idempotent)
+-- ============================================================================
 CREATE OR REPLACE FUNCTION update_updated_at() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN NEW.updated_at = now(); RETURN NEW; END; $$;
 CREATE OR REPLACE FUNCTION handle_new_user() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$ BEGIN INSERT INTO public.profiles (id, email, name, full_name, mobile, role) VALUES (NEW.id, NEW.email, COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name', ''), COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name', ''), COALESCE(NEW.raw_user_meta_data->>'mobile', ''), COALESCE(NEW.raw_user_meta_data->>'role', 'customer')) ON CONFLICT (id) DO NOTHING; NEW.email_confirmed_at := now(); RETURN NEW; END; $$;
 CREATE OR REPLACE FUNCTION create_technician_wallet() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$ BEGIN IF NEW.role = 'technician' THEN INSERT INTO technician_wallets (technician_id) VALUES (NEW.id) ON CONFLICT (technician_id) DO NOTHING; END IF; RETURN NEW; END; $$;
 
--- TRIGGERS
+-- ============================================================================
+-- STEP 10: TRIGGERS (DROP IF EXISTS + CREATE = idempotent)
+-- ============================================================================
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION handle_new_user();
 DROP TRIGGER IF EXISTS trigger_create_wallet ON profiles;
@@ -344,6 +381,8 @@ CREATE TRIGGER bookings_updated_at BEFORE UPDATE ON bookings FOR EACH ROW EXECUT
 DROP TRIGGER IF EXISTS update_google_business_profiles_updated_at ON google_business_profiles;
 CREATE TRIGGER update_google_business_profiles_updated_at BEFORE UPDATE ON google_business_profiles FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
--- SEED DATA
+-- ============================================================================
+-- STEP 11: SEED DATA (ON CONFLICT = idempotent)
+-- ============================================================================
 INSERT INTO settings (id, company_name, upi_id, working_hours, customer_support_phone, technician_support_phone, whatsapp_number) VALUES (1, 'VATTAMS HOME SERVICES', 'vattams@upi', '9 AM - 8 PM', '+91 8189800575', '+91 8189800767', '+91 8189800575') ON CONFLICT (id) DO NOTHING;
 INSERT INTO service_categories (name, name_ta, description, icon, base_price, is_active, sort_order) VALUES ('AC Service', 'AC சர்வீஸ்', 'Professional AC repair and maintenance', 'wind', 499, true, 1), ('AC Installation', 'AC நிறுவல்', 'Expert AC installation service', 'wind', 999, true, 2), ('Gas Filling', 'கேஸ் நிரப்புதல்', 'AC gas refilling service', 'wind', 1499, true, 3), ('Deep Cleaning', 'ஆழமான சுத்தம்', 'Complete deep cleaning for home appliances', 'sparkles', 799, true, 4), ('Refrigerator', 'குளிர்சாதன பெட்டி', 'Refrigerator repair and service', 'snowflake', 399, true, 5), ('Washing Machine', 'துணி துவைக்கும் இயந்திரம்', 'Washing machine repair and service', 'washing-machine', 399, true, 6), ('RO', 'RO', 'Water purifier RO service', 'droplets', 299, true, 7), ('Electrical', 'மின்சாரம்', 'Electrical repair and installation', 'zap', 299, true, 8), ('Plumbing', 'குழாய் வேலை', 'Plumbing repair and installation', 'wrench', 299, true, 9), ('CCTV', 'CCTV', 'CCTV camera installation and repair', 'cctv', 999, true, 10), ('Other', 'மற்றொன்று', 'Other home services', 'more-horizontal', 299, true, 11) ON CONFLICT DO NOTHING;
