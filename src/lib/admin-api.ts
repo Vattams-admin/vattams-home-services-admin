@@ -378,14 +378,11 @@ export const adminApi: Record<string, (...args: any[]) => Promise<any>> = {
   async getReferralStats() {
     const { data, error } = await supabase.rpc('get_all_referrals')
     if (error) throw new Error(error.message)
-    const total = data?.length || 0
-    const completed = data?.filter((r: Record<string, unknown>) => r.status === 'completed').length || 0
-    const pending = data?.filter((r: Record<string, unknown>) => r.status === 'pending').length || 0
-    return { data: { total, completed, pending } }
+    return { data: data || [] }
   },
 
   async updateReferralStatus(id: string, status: string) {
-    const { data, error } = await supabase.from('referrals').update({ status }).eq('id', id).select().single()
+    const { data, error } = await supabase.from('referrals').update({ reward_status: status }).eq('id', id).select().single()
     if (error) throw new Error(error.message)
     return { success: true, data }
   },
