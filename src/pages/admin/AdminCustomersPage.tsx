@@ -123,7 +123,7 @@ export default function AdminCustomersPage() {
     try {
       const { error } = await adminApi.createCustomerNote({
         customer_id: selectedCustomer.id,
-        admin_id: 'Admin',
+        admin_id: null,
         note: noteText.trim(),
       })
       if (error) throw error

@@ -171,26 +171,20 @@ export default function AdminGoogleBusinessPage() {
 
       if (profileId) {
         await adminApi.updateGoogleBusinessProfile(profileId, payload)
-        await adminApi.createAuditLog(
-          'Admin',
-          'update_google_business_profile',
-          'google_business_profile',
-          profileId,
-          `Updated Google Business Profile: ${form.business_name}`,
-        )
         toast.success('Google Business Profile updated successfully')
       } else {
         const result = await adminApi.createGoogleBusinessProfile(payload) as GoogleBusinessProfile | null
         if (result?.id) setProfileId(result.id)
-        await adminApi.createAuditLog(
-          'Admin',
-          'create_google_business_profile',
-          'google_business_profile',
-          null,
-          `Created Google Business Profile: ${form.business_name}`,
-        )
         toast.success('Google Business Profile created successfully')
       }
+
+      adminApi.createAuditLog(
+        'Admin',
+        profileId ? 'update_google_business_profile' : 'create_google_business_profile',
+        'google_business_profile',
+        profileId,
+        `${profileId ? 'Updated' : 'Created'} Google Business Profile: ${form.business_name}`,
+      ).catch(() => {})
     } catch {
       toast.error('Failed to save Google Business Profile')
     } finally {

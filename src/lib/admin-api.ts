@@ -184,13 +184,13 @@ export const adminApi: Record<string, (...args: any[]) => Promise<any>> = {
 
   async createNotification(notification: Record<string, unknown>) {
     const { data, error } = await supabase.from('notifications').insert(notification).select().single()
-    if (error) throw new Error(error.message)
+    if (error) { console.warn('Notification failed:', error.message); return { data: null } }
     return { data }
   },
 
   async sendNotifications(notifications: Record<string, unknown>[]) {
     const { data, error } = await supabase.from('notifications').insert(notifications)
-    if (error) throw new Error(error.message)
+    if (error) { console.warn('Batch notifications failed:', error.message); return { success: false } }
     return { success: true }
   },
 
@@ -364,7 +364,7 @@ export const adminApi: Record<string, (...args: any[]) => Promise<any>> = {
     const { data, error } = await supabase.from('audit_logs').insert({
       user_id: userId, action: logAction, entity_type: entityType, entity_id: entityId, details,
     }).select().single()
-    if (error) throw new Error(error.message)
+    if (error) { console.warn('Audit log failed:', error.message); return { data: null } }
     return { data }
   },
 

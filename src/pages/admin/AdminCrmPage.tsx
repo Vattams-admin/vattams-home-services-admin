@@ -101,7 +101,7 @@ export default function AdminCrmPage() {
     try {
       await adminApi.createCustomerNote({
         customer_id: selectedCustomerId,
-        admin_id: 'Admin',
+        admin_id: null,
         note: noteText.trim(),
       })
 
@@ -134,7 +134,7 @@ export default function AdminCrmPage() {
     try {
       await adminApi.createCustomerFollowup({
         customer_id: selectedCustomerId,
-        admin_id: 'Admin',
+        admin_id: null,
         scheduled_date: followupDate,
         reason: followupReason.trim(),
         status: 'pending',
