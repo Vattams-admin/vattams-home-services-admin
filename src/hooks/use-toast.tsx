@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, type ReactNode } from 'react'
+import { createContext, useContext, useState, useMemo, useCallback, type ReactNode } from 'react'
 import { CircleCheck as CheckCircle2, Circle as XCircle, CircleAlert as AlertCircle, Info, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -17,7 +17,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     const id = crypto.randomUUID(); setToasts(t => [...t, { id, title, message, variant }])
     setTimeout(() => remove(id), 5000)
   }
-  const toast = { success: (t: string, m?: string) => add('success', t, m), error: (t: string, m?: string) => add('error', t, m), warning: (t: string, m?: string) => add('warning', t, m), info: (t: string, m?: string) => add('info', t, m) }
+  const toast = useMemo(() => ({
+    success: (t: string, m?: string) => add('success', t, m),
+    error: (t: string, m?: string) => add('error', t, m),
+    warning: (t: string, m?: string) => add('warning', t, m),
+    info: (t: string, m?: string) => add('info', t, m),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [])
   return (
     <ToastContext.Provider value={{ toast }}>
       {children}
