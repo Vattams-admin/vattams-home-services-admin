@@ -76,9 +76,10 @@ export default function App() {
     <BrowserRouter>
       <I18nProvider>
         <ToastProvider>
-          <AuthProvider>
-            <Suspense fallback={<LoadingScreen />}>
-              <Routes>
+          <SuperAdminAuthProvider>
+            <AuthProvider>
+              <Suspense fallback={<LoadingScreen />}>
+                <Routes>
                 <Route element={<PublicLayout />}>
                   <Route path="/" element={<HomePage />} />
                   <Route path="/services" element={<ServicesPage />} />
@@ -121,13 +122,13 @@ export default function App() {
                   <Route path="referrals" element={<TechnicianReferralPage />} />
                 </Route>
 
-                <Route path="/admin/login" element={<SuperAdminAuthProvider><SuperAdminLoginPage /></SuperAdminAuthProvider>} />
+                <Route path="/admin/login" element={<SuperAdminLoginPage />} />
 
                 {/* Public redirect routes */}
                 <Route path="/profile" element={<Navigate to="/dashboard/profile" replace />} />
                 <Route path="/bookings" element={<Navigate to="/dashboard/bookings" replace />} />
 
-                <Route path="/admin" element={<SuperAdminAuthProvider><SuperAdminProtectedRoute><DashboardLayout /></SuperAdminProtectedRoute></SuperAdminAuthProvider>}>
+                <Route path="/admin" element={<SuperAdminProtectedRoute><DashboardLayout /></SuperAdminProtectedRoute>}>
                   <Route index element={<Navigate to="/admin/dashboard" replace />} />
                   <Route path="dashboard" element={<AdminDashboardPage />} />
                   <Route path="verification" element={<AdminVerificationPage />} />
@@ -159,6 +160,7 @@ export default function App() {
               </Routes>
             </Suspense>
           </AuthProvider>
+          </SuperAdminAuthProvider>
         </ToastProvider>
       </I18nProvider>
     </BrowserRouter>
