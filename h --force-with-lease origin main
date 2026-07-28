@@ -1,0 +1,10 @@
+* [33m4e1ff3e[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m VATTAMS Home Services production ready
+* [33ma7cbfcb[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m feat: add www → apex 301 redirect via CF Pages _redirects
+* [33me1cf209[m Initialize agent memory and document cloudflare pages setup
+* [33ma0b25e2[m chore: add postcss.config.js override and fix vite.config for Cloudflare Pages build
+* [33mc12d101[m fix: make PORT/BASE_PATH optional in vite.config for production builds; add postcss.config override
+* [33mc9457b6[m feat: Replit platform migration — complete Vattams Home Services import
+* [33m5248f48[m Rebrand VATTAMS to TRUSTYFIX across entire app and update env example to live backend project
+* [33m5aadd5c[m Fix: ALTER profiles first, idempotent migration for live database project
+* [33m7b0a050[m Add complete database schema SQL file
+* [33m38f645b[m Revert: use env vars for database URL instead of hardcoded value
