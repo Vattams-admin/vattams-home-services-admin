@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Lock, Loader } from 'lucide-react';
 import { useRouter } from '@/lib/router';
+import { supabase } from '@/lib/supabase';
 
 export default function AdminLogin() {
   const { navigate } = useRouter();
@@ -13,13 +14,17 @@ export default function AdminLogin() {
     e.preventDefault();
     setLoading(true);
     setError('');
-    await new Promise((r) => setTimeout(r, 600));
-    if (username === 'admin' && password === 'admin123') {
-      sessionStorage.setItem('vattams_admin', 'true');
-      navigate('admin-dashboard');
-    } else {
-      setError('Invalid credentials. Use admin / admin123.');
+    const { error } = await supabase.auth.signInWithPassword({
+      email: username.trim(),
+      password,
+    });
+    if (error) {
+      setError('Invalid admin credentials. Please use the authorized VATTAMS admin account.');
+      setLoading(false);
+      return;
     }
+    sessionStorage.setItem('vattams_admin', 'true');
+    navigate('admin-dashboard');
     setLoading(false);
   };
 
@@ -44,7 +49,7 @@ export default function AdminLogin() {
                 type="text" required value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-blue-200/50 focus:border-blue-400 focus:ring-2 focus:ring-blue-400/30 outline-none transition-all"
-                placeholder="admin"
+                placeholder="Admin email"
                 autoComplete="username"
               />
             </div>
