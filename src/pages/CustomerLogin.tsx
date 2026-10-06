@@ -14,21 +14,25 @@ const statusColors: Record<string, string> = {
 export default function CustomerLogin() {
   const { navigate } = useRouter();
   const [mobile, setMobile] = useState('');
+  const [bookingNumber, setBookingNumber] = useState('');
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!mobile || mobile.length < 10) return;
+    if (!mobile || mobile.length !== 10 || !bookingNumber.trim()) return;
     setLoading(true);
     setSearched(true);
-    const { data } = await supabase
-      .from('bookings')
-      .select('*')
-      .eq('mobile_number', mobile)
-      .order('created_at', { ascending: false });
-    setBookings(data ?? []);
+    const { data, error } = await supabase.rpc('get_customer_booking', {
+      p_booking_number: bookingNumber.trim(),
+      p_mobile: mobile,
+    });
+    if (error) {
+      setBookings([]);
+    } else {
+      setBookings(data ?? []);
+    }
     setLoading(false);
   };
 
@@ -38,22 +42,28 @@ export default function CustomerLogin() {
         <div className="text-center mb-8">
           <img src="/logo.svg" alt="VATTAMS HOME SERVICES" className="h-20 w-auto mx-auto mb-4 rounded-xl" />
           <h1 className="text-3xl font-extrabold text-gray-900 mb-2">Track Your Bookings</h1>
-          <p className="text-gray-500">Enter your mobile number to view your booking history and status.</p>
+          <p className="text-gray-500">Enter your booking number and registered mobile number to securely check your booking status.</p>
         </div>
 
         <form onSubmit={handleSearch} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-8">
-          <div className="flex gap-3">
-            <div className="relative flex-1">
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3">
+            <input
+              type="text" required value={bookingNumber}
+              onChange={(e) => setBookingNumber(e.target.value.toUpperCase())}
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
+              placeholder="Booking number (e.g. VHS20261006-ABC123)"
+            />
+            <div className="relative">
               <Phone size={16} className="absolute left-3 top-3.5 text-gray-400" />
               <input
                 type="tel" required pattern="[0-9]{10}" value={mobile}
                 onChange={(e) => setMobile(e.target.value)}
                 className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
-                placeholder="Enter your 10-digit mobile number"
+                placeholder="10-digit mobile number"
               />
             </div>
             <button type="submit" disabled={loading}
-              className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold rounded-xl transition-colors">
+              className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold rounded-xl transition-colors">
               {loading ? <Loader size={18} className="animate-spin" /> : <Search size={18} />}
               Track
             </button>
