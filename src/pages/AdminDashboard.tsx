@@ -28,11 +28,17 @@ export default function AdminDashboard() {
   const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
-    if (!sessionStorage.getItem('vattams_admin')) {
-      navigate('admin-login');
-      return;
-    }
-    loadData();
+    let mounted = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      if (!data.session) {
+        sessionStorage.removeItem('vattams_admin');
+        navigate('admin-login');
+        return;
+      }
+      loadData();
+    });
+    return () => { mounted = false; };
   }, []);
 
   const loadData = async () => {
@@ -94,7 +100,8 @@ export default function AdminDashboard() {
     setUpdating(false);
   };
 
-  const logout = () => {
+  const logout = async () => {
+    await supabase.auth.signOut();
     sessionStorage.removeItem('vattams_admin');
     navigate('home');
   };
