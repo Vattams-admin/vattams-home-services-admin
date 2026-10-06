@@ -60,28 +60,23 @@ export default function TechnicianRegister() {
       return;
     }
     setSubmitting(true);
-    const { data: technician, error } = await supabase.from('technicians').insert({
-      full_name: form.full_name,
-      mobile: form.mobile,
-      email: form.email || null,
-      city: form.city,
-      specializations: form.specializations,
-      experience_years: parseInt(form.experience_years) || 0,
-      id_proof_type: form.id_proof_type,
-      id_proof_number: form.id_proof_number,
-      status: 'pending',
-    }).select('id').single();
-    if (!error && technician) {
-      const payment = await supabase.from('technician_join_payments').insert({
-        technician_id: technician.id,
-        amount: JOIN_FEE,
-        utr: utr.trim(),
-        status: 'pending',
-      });
-      if (payment.error) {
-        await supabase.from('technicians').delete().eq('id', technician.id);
-        alert('Payment record could not be saved. Your application was not submitted. Please try again.');
-        setSubmitting(false);
+    const { error } = await supabase.rpc('submit_technician_application', {
+      p_full_name: form.full_name,
+      p_mobile: form.mobile,
+      p_email: form.email || null,
+      p_city: form.city,
+      p_specializations: form.specializations,
+      p_experience_years: parseInt(form.experience_years) || 0,
+      p_id_proof_type: form.id_proof_type,
+      p_id_proof_number: form.id_proof_number || null,
+      p_utr: utr.trim(),
+    });
+    if (error) {
+      alert(error.message || 'Registration failed. Please try again.');
+      setSubmitting(false);
+      return;
+    }
+    setSubmitting(false);
         return;
       }
     }
