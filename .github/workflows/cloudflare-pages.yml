@@ -21,8 +21,23 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Validate deployment secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_TECHNICIAN_JOIN_UPI_ID: ${{ secrets.VITE_TECHNICIAN_JOIN_UPI_ID }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID VITE_SUPABASE_URL VITE_SUPABASE_ANON_KEY VITE_TECHNICIAN_JOIN_UPI_ID; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Missing required GitHub Actions secret: $name"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then exit 1; fi
 
       - name: Build production bundle
         run: npm run build
@@ -32,7 +47,7 @@ jobs:
           VITE_TECHNICIAN_JOIN_UPI_ID: ${{ secrets.VITE_TECHNICIAN_JOIN_UPI_ID }}
 
       - name: Deploy to Cloudflare Pages
-        run: npx wrangler pages deploy dist --project-name "${{ secrets.CLOUDFLARE_PAGES_PROJECT }}"
+        run: npx wrangler pages deploy dist --project-name "vattams-home-services-admin"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
