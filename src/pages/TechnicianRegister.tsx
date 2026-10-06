@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Loader, Wrench, CheckCircle, QrCode, Copy, ExternalLink } from 'lucide-react';
+import { Loader, CheckCircle, QrCode, Copy, ExternalLink } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from '@/lib/router';
 
