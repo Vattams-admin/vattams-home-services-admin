@@ -1,4 +1,4 @@
-Founderexport default function Founder() {
+export default function Founder() {
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950">
       {/* Hero Section */}
