@@ -59,6 +59,7 @@ export default function TechnicianRegister() {
       alert('Select at least one specialization.');
       return;
     }
+
     setSubmitting(true);
     const { error } = await supabase.rpc('submit_technician_application', {
       p_full_name: form.full_name,
@@ -66,25 +67,18 @@ export default function TechnicianRegister() {
       p_email: form.email || null,
       p_city: form.city,
       p_specializations: form.specializations,
-      p_experience_years: parseInt(form.experience_years) || 0,
+      p_experience_years: parseInt(form.experience_years, 10) || 0,
       p_id_proof_type: form.id_proof_type,
       p_id_proof_number: form.id_proof_number || null,
       p_utr: utr.trim(),
     });
+    setSubmitting(false);
+
     if (error) {
       alert(error.message || 'Registration failed. Please try again.');
-      setSubmitting(false);
       return;
     }
-    setSubmitting(false);
-        return;
-      }
-    }
-    setSubmitting(false);
-    if (error) {
-      alert('Registration failed. Please try again.');
-      return;
-    }
+
     setSuccess(true);
   };
 
