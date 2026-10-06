@@ -20,69 +20,86 @@ export default function TechnicianDashboard() {
   const [jobs, setJobs] = useState<(TechnicianJob & { booking?: Booking })[]>([]);
   const [loading, setLoading] = useState(true);
   const [mobileInput, setMobileInput] = useState('');
+  const [utrInput, setUtrInput] = useState('');
   const [showLogin, setShowLogin] = useState(true);
 
   useEffect(() => {
-    const stored = sessionStorage.getItem('vattams_tech_id');
-    if (stored) {
-      setMobileInput(stored);
-      loadTechnician(stored);
-    } else {
-      setLoading(false);
-    }
-  }, []);
-
-  const loadTechnician = async (idOrMobile: string) => {
-    let query = supabase.from('technicians').select('*');
-    // Try by ID first, then by mobile
-    const { data: byId } = await supabase.from('technicians').select('*').eq('id', idOrMobile).maybeSingle();
-    if (byId) {
-      setTechnician(byId);
-      sessionStorage.setItem('vattams_tech_id', byId.id);
-      setShowLogin(false);
-      await loadJobs(byId.id);
+    const mobile = sessionStorage.getItem('vattams_tech_mobile');
+    const utr = sessionStorage.getItem('vattams_tech_utr');
+    if (mobile && utr) {
+      setMobileInput(mobile);
+      setLoadi  const loadTechnician = async (credentials: { mobile: string; utr: string }) => {
+    const { data, error } = await supabase.rpc('authenticate_technician', {
+      p_mobile: credentials.mobile,
+      p_utr: credentials.utr,
+    });
+    if (error || !data?.length) {
+      setTechnician(null);
+      setShowLogin(true);
       setLoading(false);
       return;
     }
-    const { data: byMobile } = await supabase.from('technicians').select('*').eq('mobile', idOrMobile).maybeSingle();
-    if (byMobile) {
-      setTechnician(byMobile);
-      sessionStorage.setItem('vattams_tech_id', byMobile.id);
-      setShowLogin(false);
-      await loadJobs(byMobile.id);
-      setLoading(false);
-      return;
-    }
+    const tech = data[0] as Technician;
+    setTechnician(tech);
+    sessionStorage.setItem('vattams_tech_mobile', credentials.mobile);
+    sessionStorage.setItem('vattams_tech_utr', credentials.utr);
+    setShowLogin(false);
+    await loadJobs(credentials);
     setLoading(false);
   };
 
-  const loadJobs = async (techId: string) => {
-    const { data: jobsData } = await supabase
-      .from('technician_jobs')
-      .select('*')
-      .eq('technician_id', techId)
-      .order('assigned_at', { ascending: false });
-    if (!jobsData) { setJobs([]); return; }
-    // Fetch related bookings
-    const bookingIds = jobsData.map((j) => j.booking_id);
-    const { data: bookingsData } = await supabase.from('bookings').select('*').in('id', bookingIds);
-    const bookingMap = new Map((bookingsData ?? []).map((b) => [b.id, b]));
+  const loadJobs = async (credentials: { mobile: string; utr: string }) => {
+    const { data: jobsData, error } = await supabase.rpc('get_technician_jobs', {
+      p_mobile: credentials.mobile,
+      p_utr: credentials.utr,
+    });
+    if (error) {
+      setJobs([]);
+      return;
+    }
+    setJobs((jobsData ?? []).map((j: TechnicianJob & { booking?: Booking }) => ({
+      ...j,
+      booking: {
+        id: j.booking_id,
+        booking_number: j.booking_number,
+        customer_name: j.customer_name,
+        mobile_number: j.mobile_number,
+        city: j.city,
+        address: j.address,
+        service_category: j.service_category,
+        problem_description: j.problem_description,
+        preferred_date: j.preferred_date,
+        preferred_time: j.preferred_time,
+      } as Booking,
+    })));
+  };> [b.id, b]));
     setJobs(jobsData.map((j) => ({ ...j, booking: bookingMap.get(j.booking_id) })));
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (mobileInput.length < 10) return;
+    if (mobileInput.length !== 10 || !/^[A-Za-z0-9]{8,32}$/.test(utrInput.trim())) return;
     setLoading(true);
-    loadTechnician(mobileInput);
+    await loadTechnician({ mobile: mobileInput, utr: utrInput.trim() });
   };
 
   const updateJobStatus = async (jobId: string, status: JobStatus) => {
+    const mobile = sessionStorage.getItem('vattams_tech_mobile') ?? '';
+    const utr = sessionStorage.getItem('vattams_tech_utr') ?? '';
     setUpdatingId(jobId);
-    const updates: Record<string, unknown> = { status };
-    if (status === 'completed') updates.completed_at = new Date().toISOString();
-    await supabase.from('technician_jobs').update(updates).eq('id', jobId);
-    setJobs((prev) => prev.map((j) => (j.id === jobId ? { ...j, status } : j)));
+    const { data, error } = await supabase.rpc('update_technician_job_status', {
+      p_mobile: mobile,
+      p_utr: utr,
+      p_job_id: jobId,
+      p_status: status,
+    });
+    if (!error && data) {
+      setJobs((prev) => prev.map((j) => (
+        j.id === jobId
+          ? { ...j, status, ...(status === 'completed' ? { completed_at: new Date().toISOString() } : {}) }
+          : j
+      )));
+    }
     setUpdatingId(null);
   };
 
@@ -98,7 +115,8 @@ export default function TechnicianDashboard() {
   }, [jobs]);
 
   const logout = () => {
-    sessionStorage.removeItem('vattams_tech_id');
+    sessionStorage.removeItem('vattams_tech_mobile');
+    sessionStorage.removeItem('vattams_tech_utr');
     setTechnician(null);
     setShowLogin(true);
     setJobs([]);
@@ -124,7 +142,7 @@ export default function TechnicianDashboard() {
               className="h-20 w-auto mx-auto mb-4 rounded-xl"
             />
             <h1 className="text-2xl font-extrabold text-white mb-1">Technician Portal</h1>
-            <p className="text-blue-200 text-sm">Enter your registered mobile number to access your dashboard.</p>
+            <p className="text-blue-200 text-sm">Enter your registered mobile number and verified UTR.</p>
           </div>
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="relative">
@@ -136,6 +154,12 @@ export default function TechnicianDashboard() {
                 placeholder="10-digit mobile number"
               />
             </div>
+            <input
+              type="password" required minLength={8} maxLength={32} value={utrInput}
+              onChange={(e) => setUtrInput(e.target.value.replace(/\s/g, ''))}
+              className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-blue-200/50 focus:border-blue-400 focus:ring-2 focus:ring-blue-400/30 outline-none transition-all"
+              placeholder="Verified UPI transaction ID / UTR"
+            />
             <button type="submit"
               className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-colors">
               Sign In
