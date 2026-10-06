@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Loader, Wrench, CheckCircle } from 'lucide-react';
+import { Loader, Wrench, CheckCircle, QrCode, Copy, ExternalLink } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from '@/lib/router';
 
@@ -19,6 +19,17 @@ export default function TechnicianRegister() {
   const { navigate } = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [utr, setUtr] = useState('');
+  const [paymentCopied, setPaymentCopied] = useState(false);
+
+  const JOIN_FEE = 49;
+  const UPI_ID = import.meta.env.VITE_TECHNICIAN_JOIN_UPI_ID as string | undefined;
+  const upiPayUrl = UPI_ID
+    ? `upi://pay?pa=${encodeURIComponent(UPI_ID)}&pn=${encodeURIComponent('VATTAMS Home Services')}&am=${JOIN_FEE.toFixed(2)}&cu=INR&tn=${encodeURIComponent('Technician Joining Fee')}`
+    : '';
+  const qrUrl = upiPayUrl
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=8&data=${encodeURIComponent(upiPayUrl)}`
+    : '';
   const [form, setForm] = useState({
     full_name: '', mobile: '', email: '', city: 'Chennai',
     experience_years: '0', id_proof_type: 'Aadhaar', id_proof_number: '',
@@ -36,8 +47,20 @@ export default function TechnicianRegister() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!UPI_ID) {
+      alert('Technician payment is temporarily unavailable. Please try again later.');
+      return;
+    }
+    if (!/^[A-Za-z0-9]{8,32}$/.test(utr.trim())) {
+      alert('Enter a valid UPI transaction ID / UTR after completing the ₹49 payment.');
+      return;
+    }
+    if (form.specializations.length === 0) {
+      alert('Select at least one specialization.');
+      return;
+    }
     setSubmitting(true);
-    const { error } = await supabase.from('technicians').insert({
+    const { data: technician, error } = await supabase.from('technicians').insert({
       full_name: form.full_name,
       mobile: form.mobile,
       email: form.email || null,
@@ -47,7 +70,21 @@ export default function TechnicianRegister() {
       id_proof_type: form.id_proof_type,
       id_proof_number: form.id_proof_number,
       status: 'pending',
-    });
+    }).select('id').single();
+    if (!error && technician) {
+      const payment = await supabase.from('technician_join_payments').insert({
+        technician_id: technician.id,
+        amount: JOIN_FEE,
+        utr: utr.trim(),
+        status: 'pending',
+      });
+      if (payment.error) {
+        await supabase.from('technicians').delete().eq('id', technician.id);
+        alert('Payment record could not be saved. Your application was not submitted. Please try again.');
+        setSubmitting(false);
+        return;
+      }
+    }
     setSubmitting(false);
     if (error) {
       alert('Registration failed. Please try again.');
@@ -173,7 +210,55 @@ export default function TechnicianRegister() {
                 </div>
               </div>
 
-              <button type="submit" disabled={submitting}
+              <div className="rounded-2xl border border-blue-100 bg-blue-50 p-5">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0">
+                    <QrCode size={20} />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-extrabold text-gray-900">Technician Joining Fee — ₹49</h3>
+                    <p className="text-sm text-gray-600 mt-1">Complete the one-time ₹49 joining payment, then enter the UPI transaction ID / UTR below.</p>
+                  </div>
+                </div>
+                {UPI_ID ? (
+                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-[240px_1fr] gap-5 items-center">
+                    <div className="bg-white rounded-2xl p-3 border border-blue-100 w-fit mx-auto sm:mx-0">
+                      <img src={qrUrl} alt="VATTAMS technician joining fee UPI QR" width="216" height="216" className="rounded-xl" />
+                    </div>
+                    <div className="space-y-3">
+                      <div className="bg-white rounded-xl border border-blue-100 p-3">
+                        <div className="text-xs text-gray-500 mb-1">UPI ID</div>
+                        <div className="font-bold text-gray-900 break-all">{UPI_ID}</div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button type="button" onClick={async () => {
+                          await navigator.clipboard?.writeText(UPI_ID);
+                          setPaymentCopied(true);
+                          window.setTimeout(() => setPaymentCopied(false), 1800);
+                        }} className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-blue-100 text-blue-700 text-sm font-semibold">
+                          <Copy size={15} /> {paymentCopied ? 'Copied' : 'Copy UPI ID'}
+                        </button>
+                        <a href={upiPayUrl} className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold">
+                          <ExternalLink size={15} /> Pay ₹49
+                        </a>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">UPI Transaction ID / UTR *</label>
+                        <input type="text" required minLength={8} maxLength={32} value={utr}
+                          onChange={(e) => setUtr(e.target.value.replace(/\s/g, ''))}
+                          className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
+                          placeholder="Enter transaction ID after payment" />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 p-4 text-sm">
+                    Technician payment configuration is not available. Registration is temporarily disabled until the business UPI ID is configured.
+                  </div>
+                )}
+              </div>
+
+              <button type="submit" disabled={submitting || !UPI_ID || !utr.trim()}
                 className="w-full flex items-center justify-center gap-2 py-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-bold rounded-xl transition-colors shadow-lg shadow-blue-200">
                 {submitting ? <Loader size={18} className="animate-spin" /> : 'Submit Application'}
               </button>
